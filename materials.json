@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "currency": "CAD",
+  "money_scale": 100,
+  "base_price_per_piece_cents": 100,
+  "display_rate_rounding": "up_to_whole_cent_including_hst",
+  "tax_rate_basis_points": 1300,
+  "sheet_size_inches": {
+    "width": 48,
+    "height": 96
+  },
+  "piece_size_rules": {
+    "minimum_side_inches": 1,
+    "minimum_longer_side_inches": 5,
+    "default_side_inches": 5
+  },
+  "metadata": {
+    "recorded_on": "2026-10-28",
+    "price_source": "Workshop owner: before-tax sheet purchase prices supplied on 2026-10-28. These are the calculation inputs, not scraped retail prices.",
+    "supplier": "McFadden's",
+    "supplier_names_verified_on": "2026-10-28",
+    "money_unit": "One cent is 0.01 CAD. All fields ending in _cents are whole integers.",
+    "thickness_unit": "Both inches and millimetres are recorded; 1 inch = 25.4 mm. Repeating conversions are stored to 10 decimal places.",
+    "actual_thickness_unknown": null,
+    "actual_thickness_source": "The owner measured the nominal 5.2 mm sheet at 4.75 mm. Other actual thicknesses await measurement.",
+    "shipping_policy": "Flat landed shipping allowance per sheet; no additional inbound HST is added to this allowance.",
+    "tax_rate_source": "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-place-supply.html",
+    "tax_rate_verified_on": "2026-10-28",
+    "pricing_policy": "PRICING.md",
+    "display_thickness_policy": "display_thickness contains customer-facing shop categories in each unit system, not exact conversions or measured thicknesses. Exact supplier nominal dimensions remain in nominal_thickness; measured values remain in actual_thickness."
+  },
+  "sheets": [
+    {
+      "id": "birch-5-2",
+      "label": "4.75 mm birch",
+      "supplier_name": "5.2mm CW/4 Grade Rotary Cut Birch 48\" x 96\" Veneer Core Plywood Panel",
+      "supplier_item_number": "BH.RY04.VC32",
+      "product_url": "https://mcfaddens.com/5.2mm-CW-4-Grade-Rotary-Cut-Birch-48-x-96-Veneer-Core-Plywood-Panel.html",
+      "nominal_thickness": {
+        "inches": 0.2047244094,
+        "mm": 5.2
+      },
+      "actual_thickness": {
+        "inches": 0.187007874,
+        "mm": 4.75
+      },
+      "price_cents": 2670,
+      "shipping_cents": 1000,
+      "profit_per_square_inch_cents": 3,
+      "display_thickness": {
+        "inches": "3/16",
+        "mm": "5.2"
+      }
+    },
+    {
+      "id": "birch-12-7",
+      "label": "½ inch birch",
+      "supplier_name": "1/2\" Thick C/2 Grade Rotary Cut Birch 48\" x 96\" Veneer Core Plywood Panel",
+      "supplier_item_number": "BH.RY08C2W.VC32I",
+      "product_url": "https://mcfaddens.com/1-2-Thick-C-2-Grade-Rotary-Cut-Birch-48-x-96-Veneer-Core-Plywood-Panel.html",
+      "nominal_thickness": {
+        "inches": 0.5,
+        "mm": 12.7
+      },
+      "actual_thickness": {
+        "inches": null,
+        "mm": null
+      },
+      "price_cents": 5365,
+      "shipping_cents": 1000,
+      "profit_per_square_inch_cents": 4,
+      "display_thickness": {
+        "inches": "1/2",
+        "mm": "12.7"
+      }
+    },
+    {
+      "id": "birch-19-05",
+      "label": "¾ inch birch",
+      "supplier_name": "3/4\" Thick CNAT/2 Grade Rotary Cut Birch 48\" x 96\" Veneer Core Plywood Panel",
+      "supplier_item_number": "BH.RY12CNAT2.VC32X",
+      "product_url": "https://mcfaddens.com/3-4-Thick-CNAT-2-Grade-Rotary-Cut-Birch-48-x-96-Veneer-Core-Plywood-Panel.html",
+      "nominal_thickness": {
+        "inches": 0.75,
+        "mm": 19.05
+      },
+      "actual_thickness": {
+        "inches": null,
+        "mm": null
+      },
+      "price_cents": 5682,
+      "shipping_cents": 1000,
+      "profit_per_square_inch_cents": 6,
+      "display_thickness": {
+        "inches": "3/4",
+        "mm": "19.05"
+      }
+    },
+    {
+      "id": "birch-25",
+      "label": "25 mm birch",
+      "supplier_name": "25mm Grade C/2 Rotary Cut 48\" x 96\" Veneer Core Plywood Panel",
+      "supplier_item_number": "BH.RY16C2W.VC32I",
+      "product_url": "https://mcfaddens.com/25mm-Grade-C-2-Rotary-Cut-48-x-96-Veneer-Core-Plywood-Panel.html",
+      "nominal_thickness": {
+        "inches": 0.9842519685,
+        "mm": 25
+      },
+      "actual_thickness": {
+        "inches": null,
+        "mm": null
+      },
+      "price_cents": 10913,
+      "shipping_cents": 1000,
+      "profit_per_square_inch_cents": 7,
+      "display_thickness": {
+        "inches": "1",
+        "mm": "25"
+      }
+    }
+  ]
+}

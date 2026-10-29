@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en-CA">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#8b4429">
+    <meta name="description" content="Birch plywood, cut to your size. Build a custom circle or rectangle, see your price, and put together your next project with NiceWorkshop.">
+    <title>Sanded Birch Plywood · NiceWorkshop.ca</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#builder">Skip to build your order</a>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="./" aria-label="NiceWorkshop.ca home">
+          <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21"/><path d="M25 7c10 0 16 8 15 18S31 42 22 40 7 30 9 21 16 6 25 7Z"/><path d="M25 13c7 0 11 6 10 12s-6 11-13 10-10-7-9-13 5-10 12-9Z"/><path d="M24 19c4 0 6 3 6 6s-3 6-6 5-6-3-5-6 2-5 5-5Z"/></svg>
+          <span>NiceWorkshop<span class="brand-domain">.ca</span></span>
+        </a>
+        <div class="header-right"><div class="header-info"><p class="lead-time"><span class="status-dot" aria-hidden="true"></span>Current lead time: <strong>14 days</strong></p><p class="header-help">Need help? <a href="mailto:hello@niceworkshop.ca">hello@niceworkshop.ca</a></p></div><a class="cart-link" href="#cart" aria-label="View your cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 3h3l2.2 12.5h12L22 7H6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg><span id="cart-count" class="cart-count">0</span></a></div>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <p id="loading-status" class="loading-status" role="status">Getting the workshop ready…</p>
+      <div id="fatal-error" class="error-message" role="alert" hidden></div>
+      <noscript><p class="error-message">Please enable JavaScript to choose your dimensions and calculate a price.</p></noscript>
+
+      <div id="app-content" hidden>
+        <div class="workspace">
+          <section class="builder panel" id="builder" aria-labelledby="page-title">
+            <div class="form-intro">
+              <h1 id="page-title">Sanded Birch Plywood</h1>
+              <div class="units-step">
+                <span class="sr-only" id="units-heading">Units</span>
+                <div class="segmented unit-toggle" role="group" aria-labelledby="units-heading">
+                  <button type="button" data-unit="in" aria-label="Inches" aria-pressed="true">Inches</button>
+                  <button type="button" data-unit="mm" aria-label="Millimetres" aria-pressed="false">mm</button>
+                </div>
+              </div>
+              <p class="intro-copy">Paintable · Stainable · Cabinet Grade Plywood</p>
+            </div>
+            <div class="configuration" aria-label="Tell us what you need">
+              <section class="preview-step" aria-labelledby="preview-heading">
+              <h2 class="step-heading preview-heading" id="preview-heading">Preview</h2>
+              <figure class="piece-visual" aria-labelledby="preview-heading">
+                <svg id="piece-diagram" class="piece-illustration" viewBox="0 0 420 300" role="img" aria-labelledby="piece-diagram-title">
+                  <title id="piece-diagram-title">Top view of your plywood piece with dimension guides</title>
+                  <g id="diagram-content"></g>
+                </svg>
+              </figure>
+              </section>
+
+              <div class="configurator-row">
+              <section class="configuration-step thickness-step" aria-labelledby="thickness-heading">
+                <h2 class="step-heading" id="thickness-heading">Plywood Thickness</h2>
+                <div id="rate-cards" class="rate-cards" role="radiogroup" aria-label="Plywood thickness"></div>
+              </section>
+
+              <section class="configuration-step size-step" aria-label="Shape and dimensions">
+                <div class="form-field shape-field">
+                  <label for="shape">Shape</label>
+                  <select id="shape"><option value="rectangle" selected>Rectangle</option><option value="circle">Circle</option></select>
+                </div>
+                <div class="dimension-grid">
+                  <div class="form-field"><label for="width-whole" id="width-label">Width (in)</label><div class="dimension-inputs" id="width-inputs"><div class="number-field"><select id="width-whole" aria-describedby="width-help size-error"></select><span class="input-caption" aria-hidden="true">Whole</span></div><div class="fraction-field" id="width-fraction-field"><label class="sr-only" for="width-fraction">Width fraction</label><select id="width-fraction"></select><span class="input-caption" aria-hidden="true">Fraction</span></div></div><p class="field-help" id="width-help">Max 48 inches</p></div>
+                  <div class="form-field" id="height-field"><label for="height-whole" id="height-label">Length (in)</label><div class="dimension-inputs" id="height-inputs"><div class="number-field"><select id="height-whole" aria-describedby="height-help size-error"></select><span class="input-caption" aria-hidden="true">Whole</span></div><div class="fraction-field" id="height-fraction-field"><label class="sr-only" for="height-fraction">Length fraction</label><select id="height-fraction"></select><span class="input-caption" aria-hidden="true">Fraction</span></div></div><p class="field-help" id="height-help">Max 96 inches</p></div>
+                </div>
+                <p id="size-error" class="error-message" role="alert" hidden></p>
+              </section>
+
+              </div>
+
+              <div class="purchase-row">
+                <div class="quantity-row"><label for="quantity">Quantity</label><div class="quantity-control"><button type="button" id="quantity-minus" aria-label="Decrease quantity">−</button><input id="quantity" type="number" inputmode="numeric" min="1" max="999" step="1" value="1" aria-label="Quantity"><button type="button" id="quantity-plus" aria-label="Increase quantity">+</button></div></div>
+                <div class="piece-price-block" aria-live="polite" aria-atomic="true"><div class="price-line"><strong id="piece-price">—</strong><span>CAD</span></div><p id="piece-price-note">per piece · HST included</p><p id="line-price" class="line-price" hidden></p></div>
+              </div>
+              <button type="button" id="add-to-cart" class="button button-primary">Add to cart <span aria-hidden="true">↗</span></button>
+              <p class="add-note">Cutting, light edge cleanup, and a little love are all included.</p>
+            </div>
+          </section>
+
+          <aside class="cart panel" id="cart" aria-labelledby="cart-heading">
+            <div class="section-heading"><h2 id="cart-heading">Your cart.</h2><span class="cart-heading-icon" aria-hidden="true">↙</span></div>
+            <div id="empty-cart" class="empty-cart"><svg viewBox="0 0 80 64" aria-hidden="true"><rect x="14" y="15" width="42" height="35" rx="2" transform="rotate(-12 35 32)"/><circle cx="52" cy="37" r="18"/></svg><p>Something nice starts here.</p><span>Choose a piece and add it to your cart.</span></div>
+            <p id="cart-restore-note" class="error-message" role="status" hidden></p>
+            <div id="cart-items" class="cart-items"></div>
+            <div id="cart-summary" class="cart-summary" hidden><dl><div><dt>Subtotal</dt><dd id="cart-subtotal">—</dd></div><div><dt>HST <span id="cart-tax-rate">(13%)</span></dt><dd id="cart-tax">—</dd></div><div class="cart-total-row"><dt>Total</dt><dd><span id="cart-total">—</span> <small>CAD</small></dd></div></dl><p id="cart-area" class="cart-area"></p></div>
+            <fieldset class="fulfillment"><legend>How will you get it?</legend><div class="fulfillment-options"><label class="radio-option"><input type="radio" name="fulfillment" value="pickup" checked><span><strong>Shop Pickup</strong><small>Near the Horton Community Center</small><small>(you will get an email with all the details)</small></span></label><label class="radio-option"><input type="radio" name="fulfillment" value="dropoff"><span><strong>Local Drop Off</strong><small>Renfrew or Arnprior</small><small>(or like pretty close)</small></span></label></div><p id="fulfillment-note" class="field-help">At this time we are a local only provider and do not offer shipping of any kind.</p></fieldset>
+            <button type="button" id="review-order" class="button button-primary" disabled>Review your order <span aria-hidden="true">→</span></button>
+          </aside>
+        </div>
+      </div>
+      <div id="cart-announcement" class="sr-only" role="status" aria-live="polite"></div>
+    </main>
+    <footer class="site-footer">
+      <p class="footer-brand">Oh, that’s nice.</p>
+      <p>Questions, comments, or just want to say hi?<br><a href="mailto:hello@niceworkshop.ca">hello@niceworkshop.ca</a></p>
+    </footer>
+
+    <dialog id="order-dialog" aria-labelledby="order-dialog-heading"><div class="dialog-heading"><div><p class="eyebrow">Your project, on paper</p><h2 id="order-dialog-heading">Review your order.</h2></div><button type="button" id="close-order" class="icon-button" aria-label="Close order summary">×</button></div><p class="dialog-intro">This first pass lets you save your order summary. No order is sent and no payment is taken.</p><pre id="order-summary"></pre><div class="dialog-actions"><button type="button" id="copy-order" class="button button-secondary">Copy summary</button><button type="button" id="download-order" class="button button-primary">Download summary</button></div><p id="copy-status" class="field-help" role="status"></p></dialog>
+  </body>
+</html>
