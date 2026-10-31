@@ -1,0 +1,23 @@
+{% capture email_body %}
+  {% if has_pending_payment %}
+    {% if buyer_action_required %}
+      You’ll get a confirmation email after completing your payment.
+    {% else %}
+      Your payment is being processed. You’ll get an email when your order is confirmed.
+    {% endif %}
+  {% elsif payment_charged_on_fulfillment %}
+    We’ve received your order. Your payment method will be charged when your order is ready to be fulfilled.
+  {% else %}
+    We’ve received your order and will get your cuts ready. Thank you for choosing Nice Workshop.
+  {% endif %}
+  <p>Current lead time: 14 days. We’ll send a separate email when your order is ready.</p>
+  {% assign nice_fulfillment = attributes.nice_workshop_fulfillment %}
+  {% if nice_fulfillment == 'pickup' or delivery_method == 'pick-up' or shipping_method.title == 'Shop Pickup' %}
+    <p><strong>Driveway pickup</strong><br>Once you receive your Ready email, collect your order from the pickup box in our driveway at 1019 Castleford Road, Renfrew, ON K7V 3Z8.<br>Monday–Friday, 9am–7pm (Toronto time).</p>
+  {% elsif nice_fulfillment == 'delivery' or delivery_method == 'local' or shipping_method.title == 'Local Delivery' %}
+    <p><strong>Local drop-off</strong><br>We’ll email you to confirm your drop-off time. We deliver Monday–Friday, 9am–7pm (Toronto time).</p>
+  {% else %}
+    <p><strong>Pickup and local drop-off</strong><br>Pickup is from the box in our driveway, Monday–Friday, 9am–7pm, after your Ready email. For local drop-off, we’ll email you to confirm a time within the same hours.</p>
+  {% endif %}
+  <p>The piece quantity and cut details are listed with each item below. A checkout quantity of 1 represents one matching cut group.</p>
+{% endcapture %}

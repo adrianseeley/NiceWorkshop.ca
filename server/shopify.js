@@ -67,6 +67,41 @@ function validateApiVersion(version) {
   return version;
 }
 
+// Schema inspected and this read validated against Admin API 2026-10.
+// https://shopify.dev/docs/api/admin-graphql/2026-10/objects/Order
+const ORDER_NOTIFICATION_RECIPIENT = `query NiceWorkshopNotificationRecipient($id: ID!) {
+  order(id: $id) {
+    id name email test cancelledAt displayFinancialStatus updatedAt
+    customAttributes { key value }
+    refunds(first: 1) { id }
+  }
+}`;
+
+/** Resolve only the contact for this exact verified order; never a staff-supplied address. */
+async function getOrderNotificationRecipient(client, order) {
+  if (!client || typeof client.request !== 'function' || validateShopDomain(client.shopDomain) !== order.shop
+    || typeof order.shopify_order_id !== 'string' || !/^[1-9]\d{0,29}$/.test(order.shopify_order_id)) {
+    throw configurationError('The order notification connection is not configured.');
+  }
+  const id = `gid://shopify/Order/${order.shopify_order_id}`;
+  const data = await client.request(ORDER_NOTIFICATION_RECIPIENT, {id});
+  const remote = data?.order;
+  const reference = remote?.customAttributes?.filter(item => item?.key === 'nice_workshop_reference');
+  const timestamp = Date.parse(remote?.updatedAt);
+  if (remote?.id !== id || remote.test !== false || remote.cancelledAt !== null
+    || remote.displayFinancialStatus !== 'PAID' || !Array.isArray(remote.refunds) || remote.refunds.length
+    || !Number.isFinite(timestamp) || !order.shopify_updated_at || timestamp !== new Date(order.shopify_updated_at).getTime()
+    || reference?.length !== 1 || reference[0].value !== order.checkout_attempt_id) {
+    throw new ShopifyError('SHOPIFY_ORDER_NOT_READY', 'Shopify order details need review or are still updating. Refresh before marking ready.', {statusCode:409});
+  }
+  const recipient = typeof remote.email === 'string' ? remote.email.trim() : '';
+  if (recipient.length > 254 || recipient.includes('..') || !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}$/.test(recipient)
+    || typeof remote.name !== 'string' || !remote.name.trim() || remote.name.length > 100 || /[\r\n\x00-\x1f\x7f]/.test(remote.name)) {
+    throw new ShopifyError('SHOPIFY_ORDER_CONTACT_REQUIRED', 'The order needs a valid customer email address in Shopify before it can be marked ready.', {statusCode:409});
+  }
+  return {recipient,orderName:remote.name,updatedAt:remote.updatedAt};
+}
+
 /**
  * Server-only GraphQL client for a store and app in the same Shopify organization.
  * It obtains short-lived tokens lazily and coalesces simultaneous token refreshes.
@@ -258,4 +293,4 @@ function buildDraftOrderInput(quote, options = {}) {
 }
 
 module.exports = { createShopifyClient, buildDraftOrderInput, validateShopDomain, validateApiVersion,
-  validateDeliveryAddress, DELIVERY_PRICE_CENTS, ShopifyError };
+  validateDeliveryAddress, DELIVERY_PRICE_CENTS, ShopifyError, getOrderNotificationRecipient, ORDER_NOTIFICATION_RECIPIENT };

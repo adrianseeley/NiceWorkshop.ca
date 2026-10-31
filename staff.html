@@ -10,7 +10,8 @@
 <body>
   <main class="page-shell">
     <h1>Workshop orders</h1>
-    <p>Cutting status is separate from payment and pickup or delivery. Refunds and order changes belong in Shopify.</p>
+    <p>Mark the whole order cut when cutting is complete. Once it is checked and packed, use Ready for pickup or Ready for drop-off to email the customer. Marking it cut does not send an email.</p>
+    <p>Ready does not mean collected or delivered. Record the actual handoff separately; refunds and order changes belong in Shopify.</p>
     <form id="staff-login">
       <label>Workshop access key <input id="staff-key" type="password" required autocomplete="off"></label>
       <button class="button button-primary">Load orders</button>
@@ -18,6 +19,7 @@
     <div id="staff-controls" hidden>
       <button id="staff-refresh" type="button" class="button button-primary">Refresh orders</button>
       <button id="staff-signout" type="button" class="button button-secondary">Sign out</button>
+      <p id="staff-email-status" role="status"></p>
     </div>
     <p id="staff-status" role="status"></p>
     <div id="staff-orders"></div>

@@ -42,7 +42,7 @@ test('PostgreSQL schema and production transitions', {
   try {
     await admin.query(`CREATE SCHEMA "${schema}"`);
     pool = new Pool({ ...options, options: `-c search_path=${schema}` });
-    assert.deepEqual(await migrate(pool), ['001_initial.sql', '002_checkout_metadata.sql']);
+    assert.deepEqual(await migrate(pool), ['001_initial.sql', '002_checkout_metadata.sql', '003_ready_notifications.sql']);
     assert.deepEqual(await migrate(pool), []);
 
     const cuts = [{ sheetId: 'test-sheet', shape: 'rectangle', widthUnits: 1000000, heightUnits: 1000000, quantity: 1 }];

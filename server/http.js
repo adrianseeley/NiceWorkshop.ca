@@ -8,9 +8,10 @@ const { buildQuote } = require('./quote');
 const { listOrders, setOrderCut } = require('./db');
 const { verifyWebhook, receiveWebhook } = require('./webhooks');
 const { createCheckout } = require('./checkout');
+const { markOrderReady } = require('./notifications');
 const { TERMS_VERSION, fulfillmentConfig, checkoutSettings } = require('./settings');
 const ROOT = path.resolve(__dirname, '..');
-function createApp({ pool = null, shopifyClient = null, env = process.env } = {}) {
+function createApp({ pool = null, shopifyClient = null, mailSender = null, env = process.env } = {}) {
   const app = express();
   app.disable('x-powered-by');
   if (env.NODE_ENV === 'production') {
@@ -75,7 +76,19 @@ function createApp({ pool = null, shopifyClient = null, env = process.env } = {}
     if (!pool) return res.status(503).json({ error: 'Database unavailable.' });
     next();
   });
-  app.get('/api/admin/orders', async (req, res) => res.json({ orders: await listOrders(pool, {limit:50,offset:Number(req.query.offset || 0)}) }));
+  app.get('/api/admin/orders', async (req, res) => {
+    const notification_connected = !!mailSender && !!shopifyClient;
+    res.json({orders:await listOrders(pool, {limit:50,offset:Number(req.query.offset || 0),notificationEnabled:notification_connected}),notification_connected});
+  });
+  app.post('/api/admin/orders/:orderId/ready', async (req, res) => {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)
+      || Object.keys(req.body).some(key => key !== 'expectedRevision')) {
+      return res.status(400).json({error:'Only the current order revision may be submitted.',code:'invalid_ready_update'});
+    }
+    if (!mailSender || !shopifyClient) return res.status(503).json({error:'Email sending isn’t connected yet.',code:'notification_unconfigured'});
+    res.json(await markOrderReady(pool, {orderId:req.params.orderId,expectedRevision:req.body.expectedRevision,
+      actor:'workshop-owner',shopifyClient,mailSender}));
+  });
   app.patch('/api/admin/orders/:orderId/cut', async (req, res) => {
     const { isCut, expectedRevision, reason } = req.body || {};
     res.json(await setOrderCut(pool, { orderId: req.params.orderId, isCut, expectedRevision, reason, actor: 'workshop-owner' }));

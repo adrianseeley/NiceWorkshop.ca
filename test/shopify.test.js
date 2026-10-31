@@ -181,3 +181,26 @@ test('invalid token responses and rate limits produce safe errors', async () => 
   const client = createShopifyClient({ ...credentials, fetchImpl: async () => ({ ok: false, status: 429 }) });
   await assert.rejects(client.getAccessToken(), { code: 'SHOPIFY_RATE_LIMITED' });
 });
+
+test('notification recipient lookup verifies the exact real, paid and unchanged Shopify order', async () => {
+  const {getOrderNotificationRecipient,ORDER_NOTIFICATION_RECIPIENT} = require('../server/shopify');
+  const local = {shop:'nice-test.myshopify.com',shopify_order_id:'12345',checkout_attempt_id:'checkout-1',shopify_updated_at:new Date('2026-10-31T12:00:00Z')};
+  const base = {id:'gid://shopify/Order/12345',name:'#1001',email:'customer@example.test',test:false,cancelledAt:null,
+    displayFinancialStatus:'PAID',updatedAt:'2026-10-31T12:00:00Z',refunds:[],customAttributes:[{key:'nice_workshop_reference',value:'checkout-1'}]};
+  let remote = {...base};
+  const client = {shopDomain:local.shop,request:async (query,variables) => {
+    assert.equal(query,ORDER_NOTIFICATION_RECIPIENT); assert.deepEqual(variables,{id:base.id}); return {order:remote};
+  }};
+  assert.deepEqual(await getOrderNotificationRecipient(client,local), {recipient:base.email,orderName:base.name,updatedAt:base.updatedAt});
+  for (const change of [{test:true},{cancelledAt:'2026-10-31T13:00:00Z'},{displayFinancialStatus:'PARTIALLY_REFUNDED'},
+    {refunds:[{id:'1'}]},{id:'gid://shopify/Order/54321'},{updatedAt:'2026-10-31T13:00:00Z'},
+    {customAttributes:[]},{customAttributes:[...base.customAttributes,...base.customAttributes]}]) {
+    remote = {...base,...change};
+    await assert.rejects(getOrderNotificationRecipient(client,local),{code:'SHOPIFY_ORDER_NOT_READY'});
+  }
+  for (const email of [null,'','a@example.test,b@example.test','x@example.test\r\nBcc:other@example.test','Name <a@example.test>']) {
+    remote = {...base,email};
+    await assert.rejects(getOrderNotificationRecipient(client,local),{code:'SHOPIFY_ORDER_CONTACT_REQUIRED'});
+  }
+  await assert.rejects(getOrderNotificationRecipient({...client,shopDomain:'other.myshopify.com'},local),{code:'SHOPIFY_CONFIGURATION_REQUIRED'});
+});

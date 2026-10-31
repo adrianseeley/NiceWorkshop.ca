@@ -1,7 +1,7 @@
 'use strict';
 
 const { randomUUID } = require('node:crypto');
-const { transaction } = require('./db');
+const { transaction, invalidateOrderReadiness } = require('./db');
 const { buildQuote } = require('./quote');
 const { validateShopDomain } = require('./shopify');
 
@@ -223,6 +223,9 @@ async function applyEvent(db, event, options) {
       [order.id, JSON.stringify({ webhookId: event.webhook_id, topic, reasons, prior, paymentStatus: status, holdReason: hold, revision: order.revision })]);
   }
   const mismatched = reasons.some(code => !['cancelled', 'refund_review', 'payment_not_paid', 'test_order'].includes(code));
+  if (order.ready_at && (hold || refunded || cancelledAt || status !== 'paid')) {
+    await invalidateOrderReadiness(db, order, 'shopify_order_changed', 'shopify:webhook');
+  }
   return { ...await finish(db, event, mismatched ? 'needs_reconciliation' : 'processed', mismatched ? 'ORDER_SNAPSHOT_MISMATCH' : null), orderId: order.id };
 }
 

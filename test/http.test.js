@@ -135,3 +135,18 @@ test('staff can retrieve older order pages', async t => {
   assert.equal(response.status,200);
   assert.deepEqual(values,[50,50]);
 });
+
+test('readiness requires staff authentication and configured mail, and rejects recipient overrides', async t => {
+  let calls = 0;
+  const request = await fixture(t,{env:{ADMIN_API_TOKEN:'a'.repeat(32)},pool:{query:async()=>{calls++;return {rows:[]};}}});
+  const path = '/api/admin/orders/00000000-0000-4000-8000-000000000001/ready';
+  const headers = {'content-type':'application/json',authorization:`Bearer ${'a'.repeat(32)}`};
+  assert.equal((await request(path,{method:'POST',headers:{'content-type':'application/json'},body:'{"expectedRevision":1}'})).status,401);
+  assert.equal((await request(path,{method:'POST',headers,body:'{"expectedRevision":1,"to":"other@example.test"}'})).status,400);
+  const unavailable = await request(path,{method:'POST',headers,body:'{"expectedRevision":1}'});
+  assert.equal(unavailable.status,503);
+  assert.equal((await unavailable.json()).code,'notification_unconfigured');
+  assert.equal(calls,0);
+  const list = await request('/api/admin/orders',{headers});
+  assert.equal((await list.json()).notification_connected,false);
+});
