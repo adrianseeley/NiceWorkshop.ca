@@ -4,12 +4,12 @@ const { randomUUID, createHash } = require('node:crypto');
 const { transaction } = require('./db');
 const { buildQuote, QuoteValidationError } = require('./quote');
 const { buildDraftOrderInput, validateDeliveryAddress, validateShopDomain } = require('./shopify');
+const {METHOD,findNativePickup,waitForReadyDraft,confirmedPickupDraft} = require('./native-pickup');
 
-// Fields inspected in Shopify's Admin GraphQL schema on 2026-10-31. The connector
-// deferred operation validation to execution; a test-store smoke test is required.
+// Schema inspected and validated against Shopify Admin GraphQL 2026-10.
 const CREATE_DRAFT = `mutation NiceWorkshopCreateDraft($input: DraftOrderInput!) {
   draftOrderCreate(input: $input) {
-    draftOrder { id invoiceUrl ready }
+    draftOrder { id invoiceUrl ready shippingLine { custom deliveryCategory code source title } }
     userErrors { field message }
   }
 }`;
@@ -37,6 +37,16 @@ function readyResponse(row, shopDomain, reused) {
   return { checkoutAttemptId: row.id, checkoutUrl: verifyCheckoutUrl(row.checkout_url, shopDomain), state: 'ready', reused };
 }
 
+function reuseCheckout(existing,requestHash,shopDomain) {
+  if (!existing || existing.request_hash !== requestHash || existing.metadata?.shopDomain !== shopDomain) {
+    throw new CheckoutError('IDEMPOTENCY_CONFLICT','This checkout key was already used for different order details.');
+  }
+  if (existing.state==='ready') return readyResponse(existing,shopDomain,true);
+  if (existing.state==='creating') throw new CheckoutError('CHECKOUT_IN_PROGRESS','This checkout is already being prepared. Keep the same request key and try again shortly.');
+  throw new CheckoutError(existing.state==='failed'?'CHECKOUT_REJECTED':'CHECKOUT_NEEDS_RECONCILIATION',
+    'This checkout needs workshop review before another payment link can be created.');
+}
+
 /**
  * Create at most one Shopify draft for an idempotency key. The caller supplies a
  * database pool, an authenticated client with shopDomain/request, and trusted
@@ -46,7 +56,7 @@ function readyResponse(row, shopDomain, reused) {
  * A creating/uncertain attempt is never automatically submitted again. Inspect
  * its immutable metadata.draftInput and Shopify reference to reconcile it.
  */
-async function createCheckout(pool, shopifyClient, { input, idempotencyKey, fulfillmentConfig, termsVersion } = {}) {
+async function createCheckout(pool, shopifyClient, { input, idempotencyKey, fulfillmentConfig, termsVersion, draftReadyOptions } = {}) {
   const allowed = ['cuts', 'fulfillment', 'acceptedTermsVersion', 'deliveryAddress'];
   if (!input || typeof input !== 'object' || Array.isArray(input)
     || Object.keys(input).some(key => !allowed.includes(key))) {
@@ -73,16 +83,27 @@ async function createCheckout(pool, shopifyClient, { input, idempotencyKey, fulf
   const normalizedRequest = { cuts: quote.cuts, fulfillment: quote.fulfillment,
     acceptedTermsVersion: termsVersion, deliveryAddress };
   const requestHash = createHash('sha256').update(JSON.stringify(normalizedRequest)).digest('hex');
+  // A ready/uncertain attempt does not need a fresh pickup rate lookup. Its
+  // immutable original snapshot remains authoritative for a retry.
+  const previous=(await pool.query('SELECT * FROM checkout_attempts WHERE idempotency_key = $1',[idempotencyKey])).rows[0];
+  if (previous) return reuseCheckout(previous,requestHash,shopDomain);
   const proposedId = randomUUID();
   const resolvedFulfillment = { ...fulfillmentConfig };
   if (deliveryAddress) resolvedFulfillment.delivery = { ...fulfillmentConfig?.delivery, address: deliveryAddress };
-  const draftInput = buildDraftOrderInput(quote, { reference: proposedId,
+  let draftInput = buildDraftOrderInput(quote, { reference: proposedId,
     taxPolicy: 'shopify_authoritative', fulfillmentConfig: resolvedFulfillment });
+  let nativePickup=null;
+  if (quote.fulfillment==='pickup' && resolvedFulfillment.pickup.nativePickupLocationId) {
+    nativePickup=await findNativePickup(shopifyClient,draftInput.lineItems,resolvedFulfillment.pickup.nativePickupLocationId);
+    draftInput=buildDraftOrderInput(quote,{reference:proposedId,taxPolicy:'shopify_authoritative',fulfillmentConfig:resolvedFulfillment,nativePickup});
+    draftInput.customAttributes.push({key:'nice_workshop_fulfillment_method',value:METHOD});
+  }
   draftInput.customAttributes.push({ key: 'nice_workshop_terms_version', value: termsVersion });
   const metadata = { shopDomain, termsVersion, acceptedTermsVersion: termsVersion, acceptedAt: new Date().toISOString(),
-    deliveryAddress, fulfillmentAddress: draftInput.shippingAddress,
+    deliveryAddress, fulfillmentAddress: nativePickup ? resolvedFulfillment.pickup.address : draftInput.shippingAddress,
     shippingPriceCents: resolvedFulfillment[quote.fulfillment].priceCents,
-    taxPolicy: 'shopify_authoritative', draftInput };
+    taxPolicy: 'shopify_authoritative', draftInput,
+    ...(nativePickup ? {fulfillmentMethod:METHOD,nativePickup} : {}) };
 
   // Claim and commit BEFORE the external request. If the process crashes at any
   // point after this commit, a retry cannot accidentally create a second draft.
@@ -96,15 +117,8 @@ async function createCheckout(pool, shopifyClient, { input, idempotencyKey, fulf
       quote.catalogueHash, quote.subtotalCents, quote.currency, quote.fulfillment, quote.leadTimeDays, JSON.stringify(metadata)]);
     if (inserted.rows.length) return { row: inserted.rows[0], created: true };
     const existing = (await db.query('SELECT * FROM checkout_attempts WHERE idempotency_key = $1 FOR UPDATE', [idempotencyKey])).rows[0];
-    if (!existing || existing.request_hash !== requestHash || existing.metadata?.shopDomain !== shopDomain) {
-      throw new CheckoutError('IDEMPOTENCY_CONFLICT', 'This checkout key was already used for different order details.');
-    }
-    if (existing.state === 'ready') return { row: existing, created: false };
-    if (existing.state === 'creating') {
-      throw new CheckoutError('CHECKOUT_IN_PROGRESS', 'This checkout is already being prepared. Keep the same request key and try again shortly.');
-    }
-    throw new CheckoutError(existing.state === 'failed' ? 'CHECKOUT_REJECTED' : 'CHECKOUT_NEEDS_RECONCILIATION',
-      'This checkout needs workshop review before another payment link can be created.');
+    reuseCheckout(existing,requestHash,shopDomain);
+    return { row: existing, created: false };
   });
   if (!claim.created) return readyResponse(claim.row, shopDomain, true);
 
@@ -114,14 +128,19 @@ async function createCheckout(pool, shopifyClient, { input, idempotencyKey, fulf
   try {
     const data = await shopifyClient.request(CREATE_DRAFT, { input: draftInput });
     const payload = data?.draftOrderCreate;
-    const draft = payload?.draftOrder;
+    let draft = payload?.draftOrder;
     if (typeof draft?.id === 'string' && /^gid:\/\/shopify\/DraftOrder\/\d+$/.test(draft.id)) draftId = draft.id;
     if (Array.isArray(payload?.userErrors) && payload.userErrors.length && !draftId) {
       failureCode = 'SHOPIFY_DRAFT_REJECTED';
       failureState = 'failed';
       throw new CheckoutError('CHECKOUT_REJECTED', 'Shopify could not accept this checkout. The workshop must review its settings.', 502);
     }
-    if (!draftId || draft?.ready !== true || !Array.isArray(payload?.userErrors) || payload.userErrors.length) {
+    if (draftId && draft.ready===false && Array.isArray(payload?.userErrors) && !payload.userErrors.length) {
+      failureCode='SHOPIFY_DRAFT_NOT_READY';
+      draft=await waitForReadyDraft(shopifyClient,draft,draftReadyOptions);
+    }
+    if (!draftId || draft?.ready !== true || !Array.isArray(payload?.userErrors) || payload.userErrors.length
+      || (nativePickup && !confirmedPickupDraft(draft,nativePickup))) {
       failureCode = draftId ? 'SHOPIFY_DRAFT_NOT_READY' : 'SHOPIFY_DRAFT_RESPONSE_INVALID';
       throw new CheckoutError('CHECKOUT_NEEDS_RECONCILIATION', 'Shopify has not confirmed a ready checkout. The workshop must review it before another link is created.', 503);
     }

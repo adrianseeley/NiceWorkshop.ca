@@ -5,6 +5,9 @@ const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const { buildQuote } = require('../server/quote');
 const { buildDraftOrderInput } = require('../server/shopify');
+const {ShopifyError,ORDER_NOTIFICATION_RECIPIENT} = require('../server/shopify');
+const {METHOD,PICKUP_PROOF} = require('../server/native-pickup');
+const {markOrderReady,processNotificationBatch} = require('../server/notifications');
 const { cents, orderIdentifier, validateOrderSnapshot, processWebhook, processWebhookBatch } = require('../server/process-webhooks');
 const { migrate, poolOptions, setOrderCut } = require('../server/db');
 const catalogue = require('../materials.json');
@@ -15,22 +18,24 @@ const ADDRESS = { address1: '1019 Castleford Road', city: 'Renfrew', provinceCod
 const format = amount => (amount / 100).toFixed(2);
 const clone = value => JSON.parse(JSON.stringify(value));
 
-function fixture({ fulfillment = 'pickup', id = randomUUID(), orderId = '123456789' } = {}) {
+function fixture({ fulfillment = 'pickup', id = randomUUID(), orderId = '123456789',nativePickup=false } = {}) {
   const quote = buildQuote({ cuts: [
     { sheetId: catalogue.sheets[0].id, shape: 'rectangle', widthUnits: 1000000, heightUnits: 250000, quantity: 3 },
     { sheetId: catalogue.sheets[1].id, shape: 'circle', widthUnits: 1000000, heightUnits: 1000000, quantity: 2 },
   ], fulfillment });
   const shippingPriceCents = fulfillment === 'pickup' ? 0 : 442;
+  const pickupRate={locationId:'gid://shopify/Location/94464344279',handle:'current-pickup-rate',source:'shopify',code:'Shop location',title:'Shop location'};
   const draftInput = buildDraftOrderInput(quote, { reference: id, taxPolicy: 'shopify_authoritative', fulfillmentConfig: {
-    pickup: { approved: true, title: 'Shop Pickup', priceCents: 0, address: ADDRESS },
+    pickup: { approved: true, title: 'Shop Pickup', priceCents: 0, address: ADDRESS,nativePickupLocationId:pickupRate.locationId },
     delivery: { approved: true, title: 'Local Delivery', priceCents: 442, address: ADDRESS, taxTreatment: 'exclusive', serviceAreaConfirmed: true }
-  } });
+  },...(nativePickup?{nativePickup:pickupRate}:{}) });
   draftInput.customAttributes.push({ key: 'nice_workshop_terms_version', value: 'v1' });
+  if(nativePickup)draftInput.customAttributes.push({key:'nice_workshop_fulfillment_method',value:METHOD});
   const attempt = { id, cuts: quote.cuts, catalogue_snapshot: quote.catalogueSnapshot, catalogue_hash: quote.catalogueHash,
     quoted_subtotal_cents: String(quote.subtotalCents), currency: 'CAD', fulfillment, lead_time_days: 14,
     metadata: { shopDomain: SHOP, termsVersion: 'v1', acceptedTermsVersion: 'v1', acceptedAt: '2026-10-31T12:00:00Z',
       deliveryAddress: fulfillment === 'delivery' ? ADDRESS : null, fulfillmentAddress: ADDRESS, shippingPriceCents,
-      taxPolicy: 'shopify_authoritative', draftInput } };
+      taxPolicy: 'shopify_authoritative', draftInput,...(nativePickup?{fulfillmentMethod:METHOD,nativePickup:pickupRate}:{}) } };
   const tax = Math.round((quote.subtotalCents + shippingPriceCents) * 0.13);
   const payload = { id: orderId, updated_at: '2026-10-31T12:01:00Z', currency: 'CAD', presentment_currency: 'CAD',
     financial_status: 'paid', tax_exempt: false, taxes_included: false, test: false, cancelled_at: null, refunds: [],
@@ -40,8 +45,9 @@ function fixture({ fulfillment = 'pickup', id = randomUUID(), orderId = '1234567
     total_price: format(quote.subtotalCents + shippingPriceCents + tax), current_total_price: format(quote.subtotalCents + shippingPriceCents + tax),
     total_outstanding: '0.00', total_tip_received: '0.00',
     note_attributes: draftInput.customAttributes.map(({ key, value }) => ({ name: key, value })),
-    shipping_address: { address1: ADDRESS.address1, address2: null, city: ADDRESS.city, province_code: 'ON', country_code: 'CA', zip: 'K7V3Z8' },
-    shipping_lines: [{ title: draftInput.shippingLine.title, price: format(shippingPriceCents), discounted_price: format(shippingPriceCents), discount_allocations: [] }],
+    shipping_address: nativePickup?null:{ address1: ADDRESS.address1, address2: null, city: ADDRESS.city, province_code: 'ON', country_code: 'CA', zip: 'K7V3Z8' },
+    shipping_lines: [{ title: nativePickup?pickupRate.title:draftInput.shippingLine.title,price:format(shippingPriceCents),discounted_price:format(shippingPriceCents),discount_allocations:[],
+      ...(nativePickup?{code:pickupRate.code,source:pickupRate.source,is_removed:false}:{}) }],
     line_items: draftInput.lineItems.map(line => ({ title: line.title, quantity: 1, current_quantity: 1,
       price: line.originalUnitPriceWithCurrency.amount, taxable: true, requires_shipping: true, product_id: null, variant_id: null,
       properties: line.customAttributes.map(({ key, value }) => ({ name: key, value })), total_discount: '0.00', discount_allocations: [] })) };
@@ -115,6 +121,23 @@ test('test orders always stay held and corrupted trusted snapshots are held', ()
   assert.ok(validateOrderSnapshot(payload, invalid, OPTIONS).reasons.includes('checkout_metadata_invalid'));
 });
 
+test('native pickup needs independent method/location proof and keeps legacy address validation',()=>{
+  const {attempt,payload}=fixture({nativePickup:true});
+  payload.billing_address={address1:'123 Example Street',city:'Gatineau',province_code:'QC',country_code:'CA',zip:'J8X1A1'};
+  const options={...OPTIONS,pickupEvidence:{orderId:String(payload.id),valid:true}};
+  assert.deepEqual(validateOrderSnapshot(payload,attempt,options),{valid:true,reasons:[]});
+  for(const evidence of [undefined,{orderId:payload.id,valid:false},{orderId:'999',valid:true}]) {
+    assert.ok(validateOrderSnapshot(payload,attempt,{...OPTIONS,pickupEvidence:evidence}).reasons.includes('native_pickup_mismatch'));
+  }
+  for(const alter of [p=>{p.shipping_lines[0].source='manual';},p=>{p.shipping_lines[0].code='Free delivery';},
+    p=>{p.shipping_lines[0].price='4.42';},p=>{p.shipping_lines[0].is_removed=true;},
+    p=>{p.shipping_address={address1:'Other address'};},p=>{p.note_attributes=p.note_attributes.filter(a=>a.name!=='nice_workshop_fulfillment_method');}]){
+    const changed=clone(payload);alter(changed);assert.equal(validateOrderSnapshot(changed,attempt,options).valid,false);
+  }
+  const legacy=fixture();legacy.payload.shipping_address=null;
+  assert.ok(validateOrderSnapshot(legacy.payload,legacy.attempt,OPTIONS).reasons.includes('fulfillment_address_mismatch'));
+});
+
 test('PostgreSQL webhook processing preserves production safety across retries and ordering', {
   skip: process.env.TEST_DATABASE_URL ? false : 'Set TEST_DATABASE_URL for real PostgreSQL event tests.'
 }, async t => {
@@ -131,8 +154,8 @@ test('PostgreSQL webhook processing preserves production safety across retries a
     await admin.query(`CREATE SCHEMA "${schema}"`);
     pool = new Pool({ ...options, options: `-c search_path=${schema}` });
     await migrate(pool);
-    async function seed() {
-      const result = fixture({ orderId: String(sequence++) });
+    async function seed(options={}) {
+      const result = fixture({ ...options,orderId: String(sequence++) });
       const a = result.attempt;
       await pool.query(`INSERT INTO checkout_attempts
         (id,idempotency_key,request_hash,cuts,catalogue_snapshot,catalogue_hash,quoted_subtotal_cents,fulfillment,lead_time_days,metadata)
@@ -271,6 +294,61 @@ test('PostgreSQL webhook processing preserves production safety across retries a
       assert.deepEqual((await pool.query('SELECT state,attempts FROM webhook_deliveries WHERE id=$1', [id])).rows[0], { state: 'pending', attempts: 0 });
       await pool.query('DROP TRIGGER reject_webhook_audit ON audit_log');
       assert.equal((await processWebhook(pool, id, OPTIONS)).state, 'processed');
+    });
+
+    await t.test('native pickup routing delay retries safely; matching method/location accepts and cancellation remains immediate',async()=>{
+      const {payload,attempt}=await seed({nativePickup:true});payload.test=true;
+      const id=await enqueue(payload);
+      await assert.rejects(processWebhook(pool,id,OPTIONS),{code:'NATIVE_PICKUP_UNAVAILABLE'});
+      assert.equal(await order(payload),undefined);
+      assert.equal((await pool.query('SELECT state FROM webhook_deliveries WHERE id=$1',[id])).rows[0].state,'pending');
+      let routingReady=false,calls=0;
+      const client={shopDomain:SHOP,request:async(query,{id:remoteId})=>{
+        calls++;assert.equal(query,PICKUP_PROOF);assert.equal(remoteId,`gid://shopify/Order/${payload.id}`);
+        return {order:{id:remoteId,shippingLine:{custom:false,code:'Shop location',source:'shopify',title:'Shop location'},
+          fulfillmentOrders:{nodes:routingReady?[{deliveryMethod:{methodType:'PICK_UP'},assignedLocation:{location:{id:attempt.metadata.nativePickup.locationId}}}]:[],pageInfo:{hasNextPage:false}}}};
+      }};
+      await assert.rejects(processWebhook(pool,id,{...OPTIONS,shopifyClient:client}),{code:'NATIVE_PICKUP_UNAVAILABLE'});
+      assert.equal(await order(payload),undefined);routingReady=true;
+      assert.equal((await processWebhook(pool,id,{...OPTIONS,shopifyClient:client})).state,'processed');
+      assert.equal((await order(payload)).hold_reason,'test_order');
+      const before=calls;
+      const cancelled={...payload,updated_at:'2026-10-31T12:03:00Z',cancelled_at:'2026-10-31T12:03:00Z'};
+      const cancellation=await enqueue(cancelled,'orders/cancelled');
+      assert.equal((await processWebhook(pool,cancellation,OPTIONS)).state,'processed'); // Adverse holds need no API connection.
+      assert.ok((await order(payload)).cancelled_at);assert.equal(calls,before);
+    });
+
+    await t.test('deferred pickup proof cannot starve later refunds or ready-email processing across bounded batches',async()=>{
+      const waiting=await seed({nativePickup:true});
+      const waitingId=await enqueue(waiting.payload);
+      const refunded=await seed();await delivered(refunded.payload);
+      const refundId=await enqueue({id:'900',order_id:refunded.payload.id},'refunds/create');
+      const ready=await seed();await delivered(ready.payload);
+      const productionOrder=await order(ready.payload);
+      const cut=await setOrderCut(pool,{orderId:productionOrder.id,isCut:true,expectedRevision:productionOrder.revision,actor:'owner'});
+      let sends=0;
+      const sender={send:async({to})=>{sends++;return {accepted:[to]};}};
+      const recipientClient={shopDomain:SHOP,request:async query=>{
+        assert.equal(query,ORDER_NOTIFICATION_RECIPIENT);
+        return {order:{id:`gid://shopify/Order/${ready.payload.id}`,name:'#QUEUE-TEST',email:'queue@example.test',
+          test:false,cancelledAt:null,displayFinancialStatus:'PAID',updatedAt:ready.payload.updated_at,refunds:[],
+          customAttributes:[{key:'nice_workshop_reference',value:ready.attempt.id}]}};
+      }};
+      await markOrderReady(pool,{orderId:cut.id,expectedRevision:cut.revision,actor:'owner',shopifyClient:recipientClient,mailSender:sender});
+      const unavailable={shopDomain:SHOP,request:async()=>{throw new ShopifyError('SHOPIFY_GRAPHQL_ERROR','Unavailable');}};
+      const first=await processWebhookBatch(pool,{...OPTIONS,shopifyClient:unavailable,limit:1});
+      assert.equal(first[0].id,waitingId);assert.equal(first[0].code,'NATIVE_PICKUP_RETRY');
+      const second=await processWebhookBatch(pool,{...OPTIONS,shopifyClient:unavailable,limit:1});
+      assert.equal(second[0].id,refundId);assert.equal(second[0].state,'processed');
+      assert.equal((await order(refunded.payload)).refunded,true);
+      const third=await processWebhookBatch(pool,{...OPTIONS,shopifyClient:unavailable,limit:20});
+      assert.equal(third.length,1); // Never retry the same failed lookup within one batch.
+      await processNotificationBatch(pool,{shopifyClient:recipientClient,mailSender:sender});
+      assert.equal(sends,1);
+      const inbox=(await pool.query('SELECT state,attempts,last_error_code FROM webhook_deliveries WHERE id=$1',[waitingId])).rows[0];
+      assert.deepEqual(inbox,{state:'pending',attempts:2,last_error_code:'NATIVE_PICKUP_RETRY'});
+      assert.equal(await order(waiting.payload),undefined);
     });
   } finally {
     if (pool) await pool.end();

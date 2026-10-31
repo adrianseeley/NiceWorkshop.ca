@@ -14,7 +14,7 @@ const server = createApp({ pool, shopifyClient, mailSender }).listen(Number(proc
 let working = null;
 const timer = pool && process.env.SHOPIFY_SHOP_DOMAIN ? setInterval(() => {
   if (working) return;
-  working = processWebhookBatch(pool, {shopDomain:process.env.SHOPIFY_SHOP_DOMAIN,limit:20})
+  working = processWebhookBatch(pool, {shopDomain:process.env.SHOPIFY_SHOP_DOMAIN,shopifyClient,limit:20})
     .then(() => processNotificationBatch(pool, {shopifyClient,mailSender,shopDomain:process.env.SHOPIFY_SHOP_DOMAIN,limit:5}))
     .catch(() => console.error('Order processing interrupted; persisted work retained for review.'))
     .finally(() => { working = null; });

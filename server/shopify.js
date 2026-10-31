@@ -224,8 +224,9 @@ function shippingAddress(address) {
  * }}
  * Pickup's address is the agreed collection destination. Delivery requires an
  * independently checked service area/address and an explicitly before-tax fee.
- * This creates a CUSTOM shipping rate; it is not a native Shopify pickup handle.
- * Verify checkout behavior in the target store before enabling customer checkout.
+ * Without options.nativePickup this preserves the original custom rate format.
+ * Native pickup requires a fresh, verified location/rate from Shopify; it omits
+ * shippingAddress so the buyer enters their own billing address at checkout.
  */
 function buildDraftOrderInput(quote, options = {}) {
   if (options.taxPolicy !== 'shopify_authoritative') {
@@ -254,6 +255,13 @@ function buildDraftOrderInput(quote, options = {}) {
   const address = verified.fulfillment === 'delivery'
     ? validateDeliveryAddress(fulfillment.address) : shippingAddress(fulfillment.address);
   const shippingPrice = money(fulfillment.priceCents);
+  const nativePickup = options.nativePickup;
+  if (nativePickup && (verified.fulfillment !== 'pickup'
+    || nativePickup.locationId !== fulfillment.nativePickupLocationId
+    || !/^gid:\/\/shopify\/Location\/[1-9]\d*$/.test(nativePickup.locationId)
+    || typeof nativePickup.handle !== 'string' || !nativePickup.handle || nativePickup.handle.length > 2048)) {
+    throw configurationError('Verify the native pickup location before checkout.');
+  }
   return {
     presentmentCurrencyCode: 'CAD',
     acceptAutomaticDiscounts: false,
@@ -266,8 +274,8 @@ function buildDraftOrderInput(quote, options = {}) {
       { key: 'nice_workshop_catalogue_hash', value: verified.catalogueHash },
       { key: 'nice_workshop_fulfillment', value: verified.fulfillment },
     ],
-    shippingAddress: address,
-    shippingLine: { title: fulfillment.title.trim(), priceWithCurrency: shippingPrice },
+    ...(nativePickup ? {} : {shippingAddress: address}),
+    shippingLine: nativePickup ? {shippingRateHandle:nativePickup.handle} : { title: fulfillment.title.trim(), priceWithCurrency: shippingPrice },
     lineItems: verified.cuts.map((cut, index) => {
       const sheet = verified.catalogueSnapshot.sheets.find(item => item.id === cut.sheetId);
       const groupPrice = priceCut(verified.catalogueSnapshot, cut).subtotalCents;

@@ -3,7 +3,8 @@
 const { randomUUID } = require('node:crypto');
 const { transaction, invalidateOrderReadiness } = require('./db');
 const { buildQuote } = require('./quote');
-const { validateShopDomain } = require('./shopify');
+const { validateShopDomain, ShopifyError } = require('./shopify');
+const {METHOD,nativePickupEvidence} = require('./native-pickup');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ORDER_TOPICS = new Set(['orders/paid', 'orders/updated', 'orders/cancelled']);
@@ -55,7 +56,7 @@ function normalizeAddress(address) {
  * The signed Shopify order remains authoritative for final tax, never cut sizes.
  * Missing evidence fails closed, including current totals after an order edit.
  */
-function validateOrderSnapshot(payload, attempt, { shopDomain } = {}) {
+function validateOrderSnapshot(payload, attempt, { shopDomain, pickupEvidence } = {}) {
   const reasons = new Set();
   const fail = code => reasons.add(code);
   let quote;
@@ -66,17 +67,24 @@ function validateOrderSnapshot(payload, attempt, { shopDomain } = {}) {
   } catch { fail('snapshot_invalid'); }
   const metadata = attempt?.metadata;
   const draft = metadata?.draftInput;
+  const nativePickup = metadata?.fulfillmentMethod === METHOD;
   if (!metadata || metadata.shopDomain !== shopDomain || metadata.taxPolicy !== 'shopify_authoritative'
     || !metadata.termsVersion || metadata.acceptedTermsVersion !== metadata.termsVersion
     || !draft || !Array.isArray(draft.lineItems) || !Number.isSafeInteger(metadata.shippingPriceCents)) {
     fail('checkout_metadata_invalid');
     return { valid: false, reasons: [...reasons] };
   }
+  if (metadata.fulfillmentMethod !== undefined && !nativePickup) fail('checkout_metadata_invalid');
+  if (nativePickup && (attempt.fulfillment !== 'pickup' || metadata.shippingPriceCents !== 0
+    || !/^gid:\/\/shopify\/Location\/[1-9]\d*$/.test(metadata.nativePickup?.locationId || '')
+    || !['code','source','title'].every(key=>typeof metadata.nativePickup[key]==='string' && metadata.nativePickup[key])
+    || !draft.shippingLine?.shippingRateHandle || draft.shippingAddress !== undefined)) fail('checkout_metadata_invalid');
   for (const [key, value] of Object.entries({ nice_workshop_reference: attempt.id,
     nice_workshop_catalogue_hash: attempt.catalogue_hash, nice_workshop_fulfillment: attempt.fulfillment,
     nice_workshop_terms_version: metadata.termsVersion })) {
     if (attributes(payload.note_attributes, key) !== value) fail('order_reference_mismatch');
   }
+  if (nativePickup && attributes(payload.note_attributes,'nice_workshop_fulfillment_method') !== METHOD) fail('order_reference_mismatch');
   if (payload.currency !== 'CAD' || (payload.presentment_currency !== undefined && payload.presentment_currency !== 'CAD')) fail('currency_mismatch');
   if (payload.tax_exempt !== false || payload.taxes_included !== false) fail('tax_settings_mismatch');
   // Test purchases are recorded and reconciled but never production-eligible.
@@ -116,11 +124,22 @@ function validateOrderSnapshot(payload, attempt, { shopDomain } = {}) {
   if (cents(payload.subtotal_price) !== subtotal || cents(payload.total_line_items_price) !== subtotal
     || (payload.current_subtotal_price !== undefined && cents(payload.current_subtotal_price) !== subtotal)) fail('subtotal_mismatch');
   const lines = payload.shipping_lines;
-  if (!Array.isArray(lines) || lines.length !== 1 || !lines[0] || lines[0].title !== draft.shippingLine?.title
+  const expectedShippingTitle = nativePickup ? metadata.nativePickup?.title : draft.shippingLine?.title;
+  if (!Array.isArray(lines) || lines.length !== 1 || !lines[0] || lines[0].title !== expectedShippingTitle
     || cents(lines[0].price) !== metadata.shippingPriceCents
     || (lines[0].discounted_price !== undefined && cents(lines[0].discounted_price) !== metadata.shippingPriceCents)
     || (lines[0].discount_allocations !== undefined && (!Array.isArray(lines[0].discount_allocations) || lines[0].discount_allocations.length))) fail('delivery_price_mismatch');
-  if (stable(normalizeAddress(payload.shipping_address)) !== stable(normalizeAddress(metadata.fulfillmentAddress))) fail('fulfillment_address_mismatch');
+  if (nativePickup) {
+    // Native pickup omits shipping_address; the buyer's own billing address is
+    // retained by Shopify (and the signed inbox) for a separately confirmed backup.
+    // The paid webhook does not contain a pickup category/location ID. Require
+    // a read-backed PICK_UP + assigned-location proof; a rate title is insufficient.
+    const adverse=adverseFlags(payload,'orders/updated');
+    const needsProof=!adverse.cancelled && !adverse.refunded && payload.financial_status==='paid';
+    if (lines?.[0]?.code !== metadata.nativePickup?.code || lines?.[0]?.source !== metadata.nativePickup?.source
+      || lines?.[0]?.is_removed !== false || payload.shipping_address != null
+      || (needsProof && (pickupEvidence?.orderId !== orderIdentifier(payload,'orders/paid') || pickupEvidence?.valid !== true))) fail('native_pickup_mismatch');
+  } else if (stable(normalizeAddress(payload.shipping_address)) !== stable(normalizeAddress(metadata.fulfillmentAddress))) fail('fulfillment_address_mismatch');
   const tax = cents(payload.total_tax);
   const total = cents(payload.total_price);
   if (tax === null || total === null || total !== subtotal + metadata.shippingPriceCents + tax
@@ -193,7 +212,12 @@ async function applyEvent(db, event, options) {
   let status = order?.payment_status || 'unknown';
   let lastTime = order?.shopify_updated_at || null;
   if (topic !== 'refunds/create' && !stale) {
-    const validation = validateOrderSnapshot(payload, attempt, options);
+    // Routing can lag the paid webhook. Unavailable proof throws and rolls back
+    // inbox processing for retry; it must not invent a permanent production hold.
+    // Adverse signed events must apply their hold even during a Shopify outage.
+    const pickupEvidence = attempt.metadata?.fulfillmentMethod === METHOD && !flags.cancelled && !flags.refunded && payload.financial_status==='paid'
+      ? await nativePickupEvidence(options.shopifyClient,shop,orderId,attempt.metadata.nativePickup) : undefined;
+    const validation = validateOrderSnapshot(payload, attempt, {...options,pickupEvidence});
     reasons.push(...validation.reasons);
     if (!incomingTime) reasons.push('event_timestamp_invalid');
     status = PAYMENT_STATUSES.has(payload.financial_status) ? payload.financial_status : 'unknown';
@@ -230,7 +254,7 @@ async function applyEvent(db, event, options) {
 }
 
 function processorOptions(options = {}) {
-  return { shopDomain: validateShopDomain(options.shopDomain) };
+  return { shopDomain: validateShopDomain(options.shopDomain),shopifyClient:options.shopifyClient };
 }
 
 /** Process only a persisted inbox ID. Ingress must verify HMAC before inserting. */
@@ -249,15 +273,32 @@ async function processWebhookBatch(pool, options = {}) {
   const limit = options.limit ?? 25;
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('Use a webhook batch limit of 1–100.');
   const results = [];
+  const deferred=[];
   for (let i = 0; i < limit; i++) {
-    const result = await transaction(pool, async db => {
-      const event = (await db.query(`SELECT w.* FROM webhook_deliveries w WHERE w.shop=$1 AND
+    let eventId;
+    let result;
+    try {
+      result = await transaction(pool, async db => {
+      const event = (await db.query(`SELECT w.* FROM webhook_deliveries w WHERE w.shop=$1 AND NOT(w.id=ANY($2::bigint[])) AND
         (w.state='pending' OR (w.state='needs_reconciliation' AND w.last_error_code='ORDER_NOT_FOUND' AND EXISTS
           (SELECT 1 FROM orders o WHERE o.shop=w.shop AND o.shopify_order_id=CASE WHEN w.topic='refunds/create'
             THEN w.payload->>'order_id' ELSE w.payload->>'id' END)))
-        ORDER BY w.received_at,w.id LIMIT 1 FOR UPDATE OF w SKIP LOCKED`, [config.shopDomain])).rows[0];
+        ORDER BY w.attempts,w.received_at,w.id LIMIT 1 FOR UPDATE OF w SKIP LOCKED`, [config.shopDomain,deferred])).rows[0];
+      eventId=event?.id;
       return event ? applyEvent(db, event, config) : null;
-    });
+      });
+    } catch(error) {
+      if (!(error instanceof ShopifyError) || !eventId) throw error;
+      // Keep transient pickup lookup/routing failures pending, without holding
+      // the order or starving later refunds, cancellations or notification work.
+      // Attempt ordering provides fairness across ticks; exclusion bounds each
+      // event to one attempt per batch even when it is the only pending row.
+      deferred.push(eventId);
+      await pool.query(`UPDATE webhook_deliveries SET attempts=attempts+1,last_error_code='NATIVE_PICKUP_RETRY'
+        WHERE id=$1 AND state='pending'`,[eventId]);
+      results.push({id:eventId,state:'pending',code:'NATIVE_PICKUP_RETRY'});
+      continue;
+    }
     if (!result) break;
     results.push(result);
   }

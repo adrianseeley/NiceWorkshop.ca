@@ -109,6 +109,18 @@ test('reusing an idempotency key for different cuts or fulfillment fails', async
   assert.equal(calls, 1);
 });
 
+test('a cached legacy review cannot reuse its old checkout after the native-pickup review version changes',async()=>{
+  const pool=new MemoryPool();let calls=0;
+  const client={shopDomain,request:async()=>{calls++;return draftResponse();}};
+  const legacy=makeRequest();await createCheckout(pool,client,legacy);
+  const current=makeRequest();current.termsVersion=require('../server/settings').TERMS_VERSION;
+  assert.notEqual(current.termsVersion,legacy.termsVersion);
+  await assert.rejects(createCheckout(pool,client,current),{code:'TERMS_ACCEPTANCE_REQUIRED'});
+  current.input.acceptedTermsVersion=current.termsVersion;
+  await assert.rejects(createCheckout(pool,client,current),{code:'IDEMPOTENCY_CONFLICT'});
+  assert.equal(calls,1);
+});
+
 test('unknown network outcomes become reconciliation holds and cannot be automatically resubmitted', async () => {
   const pool = new MemoryPool();
   let calls = 0;
@@ -126,12 +138,59 @@ test('unknown network outcomes become reconciliation holds and cannot be automat
 
 test('a known unfinished draft retains its ID for reconciliation instead of creating another one', async () => {
   const pool = new MemoryPool();
-  const client = { shopDomain, request: async () => draftResponse({ ready: false, invoiceUrl: null }) };
-  await assert.rejects(createCheckout(pool, client, makeRequest()), { code: 'CHECKOUT_NEEDS_RECONCILIATION' });
+  let creates=0,reads=0;
+  const client = { shopDomain, request: async query => {
+    if (query.startsWith('mutation')) {creates++;return draftResponse({ready:false,invoiceUrl:null});}
+    reads++;return {draftOrder:draftResponse({ready:false,invoiceUrl:null}).draftOrderCreate.draftOrder};
+  } };
+  await assert.rejects(createCheckout(pool, client, {...makeRequest(),draftReadyOptions:{sleep:async()=>{}}}), { code: 'CHECKOUT_NEEDS_RECONCILIATION' });
   const row = [...pool.rows.values()][0];
   assert.equal(row.state, 'needs_reconciliation');
   assert.equal(row.shopify_draft_id, 'gid://shopify/DraftOrder/123');
   assert.equal(row.last_error_code, 'SHOPIFY_DRAFT_NOT_READY');
+  assert.equal(creates,1);assert.equal(reads,7);
+});
+
+test('native pickup looks up the approved location and never prefills the buyer shipping or billing address',async()=>{
+  const {PICKUP_OPTIONS,READY_DRAFT,METHOD}=require('../server/native-pickup');
+  const request=makeRequest();request.fulfillmentConfig.pickup.nativePickupLocationId='gid://shopify/Location/94464344279';
+  const rate={locationId:request.fulfillmentConfig.pickup.nativePickupLocationId,handle:'current-pickup-rate',code:'Shop location',source:'shopify',title:'Shop location'};
+  const line={custom:false,deliveryCategory:'pick-up',code:rate.code,source:rate.source,title:rate.title};
+  const pool=new MemoryPool();let lookups=0,creates=0,reads=0;
+  const client={shopDomain,request:async(query,variables)=>{
+    if(query===PICKUP_OPTIONS){
+      lookups++;assert.equal(variables.input.shippingAddress,undefined);
+      return {draftOrderAvailableDeliveryOptions:{availableLocalPickupOptions:[rate],pageInfo:{hasNextPage:false}}};
+    }
+    if(query===READY_DRAFT){reads++;return {draftOrder:draftResponse({shippingLine:line}).draftOrderCreate.draftOrder};}
+    creates++;
+    assert.deepEqual(variables.input.shippingLine,{shippingRateHandle:rate.handle});
+    assert.equal(variables.input.shippingAddress,undefined);assert.equal(variables.input.billingAddress,undefined);
+    return draftResponse({ready:false,invoiceUrl:null,shippingLine:line});
+  }};
+  const response=await createCheckout(pool,client,request);
+  assert.equal(response.state,'ready');
+  const metadata=[...pool.rows.values()][0].metadata;
+  assert.equal(metadata.fulfillmentMethod,METHOD);assert.deepEqual(metadata.nativePickup,rate);
+  assert.deepEqual(metadata.fulfillmentAddress,address);assert.equal(metadata.draftInput.shippingAddress,undefined);
+  assert.ok(metadata.draftInput.customAttributes.some(a=>a.key==='nice_workshop_fulfillment_method'&&a.value===METHOD));
+  assert.equal((await createCheckout(pool,client,request)).reused,true);
+  assert.deepEqual([lookups,creates,reads],[1,1,1]);
+});
+
+test('native pickup cannot fall back to an unavailable or custom shipping rate',async()=>{
+  const {PICKUP_OPTIONS}=require('../server/native-pickup');
+  const request=makeRequest();request.fulfillmentConfig.pickup.nativePickupLocationId='gid://shopify/Location/94464344279';
+  const pool=new MemoryPool();
+  const unavailable={shopDomain,request:async query=>{assert.equal(query,PICKUP_OPTIONS);
+    return {draftOrderAvailableDeliveryOptions:{availableLocalPickupOptions:[],pageInfo:{hasNextPage:false}}};}};
+  await assert.rejects(createCheckout(pool,unavailable,request),{code:'NATIVE_PICKUP_UNAVAILABLE'});assert.equal(pool.rows.size,0);
+  const rate={locationId:request.fulfillmentConfig.pickup.nativePickupLocationId,handle:'rate',code:'Shop location',source:'shopify',title:'Shop location'};
+  const custom={shopDomain,request:async query=>query===PICKUP_OPTIONS
+    ? {draftOrderAvailableDeliveryOptions:{availableLocalPickupOptions:[rate],pageInfo:{hasNextPage:false}}}
+    : draftResponse({shippingLine:{custom:true,deliveryCategory:null,code:rate.code,source:rate.source,title:rate.title}})};
+  await assert.rejects(createCheckout(pool,custom,request),{code:'CHECKOUT_NEEDS_RECONCILIATION'});
+  assert.equal([...pool.rows.values()][0].state,'needs_reconciliation');
 });
 
 test('a confirmed Shopify validation rejection is recorded without exposing upstream messages', async () => {
