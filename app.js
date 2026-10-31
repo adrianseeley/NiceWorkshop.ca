@@ -387,8 +387,6 @@
     $('cart-total').textContent = money(totals.totalCents);
     if ($('cart-area')) $('cart-area').textContent = `${count} ${count === 1 ? 'piece' : 'pieces'}`;
     $('fulfillment-note').textContent = 'At this time we are a local only provider and do not offer shipping of any kind.';
-    const deliveryTax = roundRatio(BigInt(checkoutSettings.deliveryPriceCents) * BigInt(config.tax_rate_basis_points), 10000n);
-    $('delivery-estimate-note').textContent = `${money(checkoutSettings.deliveryPriceCents + deliveryTax)} including estimated HST`;
   }
 
   function announce(message) {
