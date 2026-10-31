@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Workshop orders — NICE.</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script defer src="/staff.js"></script>
+</head>
+<body>
+  <main class="page-shell">
+    <h1>Workshop orders</h1>
+    <p>Cutting status is separate from payment and pickup or delivery. Refunds and order changes belong in Shopify.</p>
+    <form id="staff-login">
+      <label>Workshop access key <input id="staff-key" type="password" required autocomplete="off"></label>
+      <button class="button button-primary">Load orders</button>
+    </form>
+    <div id="staff-controls" hidden>
+      <button id="staff-refresh" type="button" class="button button-primary">Refresh orders</button>
+      <button id="staff-signout" type="button" class="button button-secondary">Sign out</button>
+    </div>
+    <p id="staff-status" role="status"></p>
+    <div id="staff-orders"></div>
+    <button id="staff-previous" type="button" class="button button-secondary" hidden>Previous orders</button>
+    <button id="staff-next" type="button" class="button button-secondary" hidden>Next orders</button>
+  </main>
+</body>
+</html>

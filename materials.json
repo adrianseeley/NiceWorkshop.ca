@@ -1,18 +1,14 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "currency": "CAD",
   "money_scale": 100,
   "base_price_per_piece_cents": 100,
   "display_rate_rounding": "up_to_whole_cent_including_hst",
   "tax_rate_basis_points": 1300,
-  "sheet_size_inches": {
-    "width": 48,
-    "height": 96
-  },
   "piece_size_rules": {
-    "minimum_side_inches": 1,
-    "minimum_longer_side_inches": 5,
-    "default_side_inches": 5
+    "minimum_side_mm": 25,
+    "minimum_longer_side_mm": 100,
+    "default_side_mm": 100
   },
   "metadata": {
     "recorded_on": "2026-10-28",
@@ -27,7 +23,7 @@
     "tax_rate_source": "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-place-supply.html",
     "tax_rate_verified_on": "2026-10-28",
     "pricing_policy": "PRICING.md",
-    "display_thickness_policy": "display_thickness contains customer-facing shop categories in each unit system, not exact conversions or measured thicknesses. Exact supplier nominal dimensions remain in nominal_thickness; measured values remain in actual_thickness."
+    "display_thickness_policy": "Millimetres are the source of truth. Bracketed inch references are derived from millimetres and rounded to the nearest 1/16 inch; they are nominal references, not exact conversions or measured thicknesses."
   },
   "sheets": [
     {
@@ -48,7 +44,6 @@
       "shipping_cents": 1000,
       "profit_per_square_inch_cents": 3,
       "display_thickness": {
-        "inches": "3/16",
         "mm": "5.2"
       }
     },
@@ -70,7 +65,6 @@
       "shipping_cents": 1000,
       "profit_per_square_inch_cents": 4,
       "display_thickness": {
-        "inches": "1/2",
         "mm": "12.7"
       }
     },
@@ -92,7 +86,6 @@
       "shipping_cents": 1000,
       "profit_per_square_inch_cents": 6,
       "display_thickness": {
-        "inches": "3/4",
         "mm": "19.05"
       }
     },
@@ -114,9 +107,16 @@
       "shipping_cents": 1000,
       "profit_per_square_inch_cents": 7,
       "display_thickness": {
-        "inches": "1",
         "mm": "25"
       }
     }
-  ]
+  ],
+  "sheet_size_mm": {
+    "width": 1219.2,
+    "height": 2438.4
+  },
+  "cut_size_limits_mm": {
+    "width": 1200,
+    "height": 2400
+  }
 }

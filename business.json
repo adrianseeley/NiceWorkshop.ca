@@ -1,0 +1,19 @@
+{
+  "business_name_shown": "ADRIAN SEELEY",
+  "business_number": "795906486",
+  "gst_hst_account": "795906486RT0001",
+  "gst_hst_registration_status": "active",
+  "gst_hst_status_confirmed_by_owner_on": "2026-10-31",
+  "source": "User-provided CRA My Business Account screenshot, October 31, 2026",
+  "saved_on": "2026-10-31",
+  "gst_hst_reporting": {
+    "frequency": "annual",
+    "fiscal_year_end": "12-31",
+    "current_period_start": "2026-01-01",
+    "current_period_end": "2026-12-31",
+    "return_type": "GST34",
+    "return_due_date_shown": "2027-06-15",
+    "payment_due_date": null,
+    "source": "User-provided CRA screenshots, October 31, 2026; filing due date is not a payment-deadline confirmation"
+  }
+}

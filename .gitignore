@@ -22,3 +22,10 @@ __pycache__/
 *.swp
 *.swo
 *~
+
+# Node dependencies and coverage
+node_modules/
+coverage/
+
+# Local secrets; never commit or deploy
+/.private/
