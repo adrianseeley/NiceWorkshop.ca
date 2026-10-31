@@ -9,7 +9,7 @@ Verified October 31, 2026. This document records the running environment and the
 | Public app | https://www.niceworkshop.ca/ |
 | Staff page | https://www.niceworkshop.ca/staff |
 | Heroku app | `niceworkshop-ca` |
-| Deployment | **v21**, Heroku deployment commit `81750de`, from source `7d71277`; schema current. Native pickup verified in v20 through fresh application order #1004 |
+| Deployment | **v22**, Heroku deployment commit `748461d`, from source `abb3e76`; schema current. Pickup review explicitly tells customers to wait for the Ready email. Native pickup verified in v20 through fresh application order #1004 |
 | Region / stack | `us` / `heroku-24` |
 | Runtime | Node.js 24; one always-on Basic web dyno |
 | Database | Separate Heroku Postgres Essential-0 |
