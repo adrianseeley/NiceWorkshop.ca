@@ -185,8 +185,10 @@
 
   function setDimensionInputs(field) {
     const input = $(`${field}-mm`);
-    const min = config.piece_size_rules.minimum_side_mm;
+    const min = field === 'width' && state.shape === 'circle'
+      ? config.piece_size_rules.minimum_longer_side_mm : config.piece_size_rules.minimum_side_mm;
     const max = field === 'width' ? config.cut_size_limits_mm.width : config.cut_size_limits_mm.height;
+    state[`${field}Units`] = Math.max(min * PER_MM, state[`${field}Units`]);
     input.innerHTML = Array.from({ length: max - min + 1 }, (_, index) => {
       const mm = min + index;
       return `<option value="${mm}">${dimensionLabel(mm * PER_MM)}</option>`;
