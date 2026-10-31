@@ -2,7 +2,9 @@
 
 Last reviewed: October 31, 2026. Times used for customer promises and reporting: America/Toronto. Currency: CAD.
 
-**Current status: deployed for test checkout; live sales remain closed by the owner's choice.** The Heroku app, Postgres database, installed Shopify app, signed-event subscriptions, tax registration, and daily backups are configured. Pickup, delivery, failed-payment, partial/full-refund, order-edit, and cancellation tests passed, and a populated database backup was restored successfully. The official Shopify **Test payment gateway** remains active; no real money moved. On October 31, 2026, the owner reported completing all business-verification steps and choosing weekly payouts, while deliberately leaving Shopify Payments unactivated. Shopify now displays **Inactive** and **Your shop is ready to use Shopify Payments**; the connected payout account and **weekly Monday** schedule were verified in its settings. Payment capture is verified as **Automatically at checkout**; mailbox receipt of customer notices remains unverified. Use only test payment details. Live activation requires the owner's explicit later authorization as well as the remaining launch checks. This project must never modify or deploy to **Mighty Fine Orders**.
+**Current status: deployed for test checkout; live sales remain closed by the owner's choice.** The Heroku app, Postgres database, installed Shopify app, signed-event subscriptions, tax registration, and daily backups are configured. Pickup, delivery, failed-payment, partial/full-refund, order-edit, and cancellation tests passed, and a populated database backup was restored successfully. The official Shopify **Test payment gateway** remains active; no real money moved. On October 31, 2026, the owner reported completing all business-verification steps and choosing weekly payouts, while deliberately leaving Shopify Payments unactivated. Shopify now displays **Inactive** and **Your shop is ready to use Shopify Payments**; the connected payout account and **weekly Monday** schedule were verified in its settings. Payment capture is verified as **Automatically at checkout**. The updated Shopify confirmation test and both workshop Ready-email previews were received in Proton. Refund-notice receipt and actual order handoff remain unverified. Use only test payment details. Live activation requires the owner's explicit later authorization as well as the remaining launch checks. This project must never modify or deploy to **Mighty Fine Orders**.
+
+Shopify's notification sender displays **Authenticated** after six CNAME records were added; existing DNS records were preserved. The updated order-confirmation template was saved, previewed, and its test email received at **hello@niceworkshop.ca** in Proton, with sender/recipient fields and the rendered body verified. The separate workshop **Ready** action was introduced in release **v18**, with migration 003 applied, and remains available in the current **v21** release. The SMTP run submitted exactly two test previews; both were accepted and received in Proton, from and to **hello@niceworkshop.ca**. The pickup body was also checked. The deployed staff page shows **Ready emails are connected** and three local orders. The new paid test order #1004 and both earlier refunded test orders are blocked from cutting or Ready.
 
 ## Store and service details
 
@@ -17,6 +19,7 @@ Last reviewed: October 31, 2026. Times used for customer promises and reporting:
 | Runtime Shopify app | **Nice Workshop Orders**, installed; server credentials verified |
 | Customer service | `hello@niceworkshop.ca` |
 | Pickup | **1019 Castleford Road, Renfrew, ON K7V 3Z8, Canada** |
+| Pickup and drop-off hours | **Monday–Friday, 9am–7pm, Toronto time**; confirm the individual drop-off time by email |
 | GST/HST | **795906486RT0001**, confirmed active by the owner and saved in Shopify's Canada tax collection settings |
 | Daily database backup | **03:00 America/Toronto** |
 | Website domain | `www.niceworkshop.ca` serves the site over verified HTTPS; `niceworkshop.ca` redirects there with paths and query values preserved |
@@ -30,6 +33,7 @@ Business identifiers and annual reporting details are maintained in [business.js
 | Take payment | Shopify hosted checkout, opened directly from the website | Shopify confirms captured payment; local order records that confirmation |
 | Refund money, cancel an order, review payment problems | Shopify admin → Orders → the order | Correct transaction and status in Shopify, synchronized local production hold |
 | Read the cut specifications and mark the entire order cut | Nice Workshop production record | Saved JSON cut list, current revision, cut timestamp and operator |
+| Mark ready and notify the customer | Separate **Ready for pickup** or **Ready for drop-off** action on the deployed staff page | Readiness and email status recorded separately from actual handoff |
 | Change paid cut specifications | Owner-approved exception, following the procedure below | New reviewed revision, financial adjustment complete, old revision retained |
 | Confirm pickup or delivery | Order record and the tested Shopify fulfillment workflow | Actual handoff recorded separately from cutting |
 | Export sales and tax records | Shopify admin → Analytics → Reports | Date-stamped exports reconciled to orders and refunds |
@@ -42,7 +46,7 @@ The runtime app's four API-version **2026-10** subscriptions are registered for 
 
 The service sells custom rectangles and circles cut from plywood. There is no product inventory or SKU system. The cut list may remain JSON; completion is recorded for the **whole order**, not individual cuts. A paid order enters the nesting/production queue, with a stated 14-day lead time. Capture the lead time and policy version accepted at purchase; a later banner change must not rewrite an existing promise.
 
-The fulfillment options are free driveway pickup at the address above and approximately **$5 tax included** for local drop-off, with no shipping. Delivery is available where the legal address's city is **Arnprior, Braeside, McNab, or Renfrew**. The configured fee is $4.42 before tax; test checkout confirmed **$4.99 including HST**, an owner-approved difference from $5. Check the actual delivery address before dispatch. Pickup is the driveway stand; use the current instructions in the customer confirmation.
+The fulfillment options are free driveway pickup at the address above and approximately **$5 tax included** for local drop-off, with no shipping. Delivery is available where the legal address's city is **Arnprior, Braeside, McNab, or Renfrew**. The configured fee is $4.42 before tax; test checkout confirmed **$4.99 including HST**, an owner-approved difference from $5. Check the actual delivery address before dispatch. Pickup is from the driveway box, Monday–Friday, 9am–7pm Toronto time. Drop-offs use the same hours, with the particular time confirmed by email. The option’s short display note is **$5.00**; this does not change checkout pricing.
 
 The owner has approved exact pre-tax group pricing with **estimated tax on the site and Shopify's final tax at checkout**. Each matching cut group is represented as one priced bundle with its physical piece count clearly labelled; Shopify quantity one means one group, not one physical piece. The existing calculator taxes the combined subtotal, so its estimate can differ from Shopify's rounding. Test this distinction in the cart, checkout, refunds, and reports.
 
@@ -50,7 +54,11 @@ The owner has authorized test pickup, delivery, refund, and cancellation orders 
 
 The intended policy is that paid custom orders enter production and are ordinarily final. Have the owner approve the wording presented before payment. “Final sale” does not settle every complaint: Ontario does not provide a general change-of-mind return right, but statutory remedies can still apply. Escalate defective, misdescribed, missing, or materially delayed orders to the owner; do not reject them solely because a checkbox was accepted. [Ontario returns guidance](https://www.ontario.ca/page/returns-exchanges-and-warranties-ontario), [online purchase disclosures](https://www.ontario.ca/page/safe-online-shopping), [delivery and consumer rights](https://www.ontario.ca/page/your-rights-under-consumer-protection-act).
 
-Pickup currently uses a custom zero-cost Shopify shipping rate. Customers keep the workshop address as the pickup destination and enter their own name/contact details. If their payment card uses another billing address, they uncheck **Use shipping address as billing address** in checkout and enter it separately. The website explains this before checkout. Changing the agreed pickup/delivery destination creates a production hold for review.
+Native pickup is deployed and verified in release **v20**, at workshop location **94464344279**. A fresh checkout from the application created paid test order **#1004** for one 100 mm circle in 25 mm birch. Shopify asked for the customer’s own billing address, with no shipping-address form. The Quebec billing test paid **$2.87**, including **$0.33 HST**. Signed events created one matching local paid order, held only as a test order, uncut and not marked ready. Required Shopify permissions and the pickup method/location were verified.
+
+
+The owner approved using only the customer’s **own billing address** as the backup address. Quebec and other billing provinces remain allowed for pickup. Release v21 removes the statutory-rights sentence from the customer checkbox, as requested; it does not add a billing-province restriction. No separate address is required for pickup. If pickup later changes to delivery, confirm that address with the customer first and review delivery eligibility and charges. The order remains free pickup unless that change is agreed. The checkout note explains this billing-address choice; earlier saved orders retain their original checkout rules.
+
 
 ## Daily order routine
 
@@ -65,7 +73,7 @@ Open the [Workshop orders page](https://www.niceworkshop.ca/staff), enter the wo
 
 If an order is marked cut accidentally, correct it with a reason and an audit entry. Do not erase its history. A new cut-list revision requires review; never silently reuse an earlier completion flag.
 
-The staff page offers **Mark entire order cut** and **Reopen cutting status**. It does not edit cut specifications, refund payments, or clear production holds. Held records need owner review and, where required, an audited reconciliation by the maintainer. Do not remove a hold or change saved JSON directly just to make a button available. `test_order` always means a simulated purchase that must not be cut.
+The deployed staff page offers **Mark entire order cut** and **Reopen cutting status**. The separate Ready action is deployed, and both SMTP test previews were received. Neither cutting nor opening or refreshing the page sends an email. It does not edit cut specifications, refund payments, or clear production holds. Held records need owner review and, where required, an audited reconciliation by the maintainer. Do not remove a hold or change saved JSON directly just to make a button available. `test_order` always means a simulated purchase that must not be cut or send a customer-ready email.
 
 ## Refund an order
 
@@ -111,11 +119,28 @@ Changing a contact detail is different from changing a cut. A delivery-address c
 
 ## Pickup, delivery, and customer messages
 
-Before notifying a customer that an order is ready, verify the entire order is cut, checked, labelled, and packed. Use the saved fulfillment choice and approved pickup instructions. Record collection or completed delivery only when it happens.
+**Ready workflow status: deployed; email connection and both preview deliveries verified.** Follow this process for eligible orders:
 
-The initial purchase should open Shopify checkout directly; an emailed invoice is not required. Order confirmations, ready notices, refund notices, and exceptional additional-payment requests are separate messages. Confirm which system sends each before launch to avoid duplicates. Test delivery to the connected business inbox and a customer test inbox. Do not assume that an open Proton Mail session configures outbound application email.
+1. Refresh the staff order. Confirm payment is complete, the whole order is cut, and there is no hold, refund, or cancellation. Check, label, and pack every piece. Put pickup orders in the driveway box before announcing readiness.
+2. Select **Ready for pickup — email customer** or **Ready for drop-off — email customer**. This separate action records readiness and queues one email using the saved fulfillment choice and verified Shopify contact.
+3. Use **Refresh orders** to check the email status. Repeated clicks do not queue another message. When **Email sending isn’t connected yet** appears, Ready is disabled.
+4. Pickup instructions give **1019 Castleford Road, Renfrew, ON K7V 3Z8**, the driveway box, and **Monday–Friday, 9am–7pm Toronto time**. Customers bring their confirmation or order number. Drop-off notices say that the particular time will be confirmed by email, within the same weekday hours.
+5. Record collection or completed delivery only when it happens. Ready and email acceptance do not mark an order collected, delivered, or fulfilled.
 
-A custom delivery charge titled “pickup” or “local delivery” does not prove Shopify's native pickup/delivery workflow is enabled. The launch tests must establish the actual buttons/statuses and customer notifications for both choices before staff use them.
+| Email status | Meaning / next step |
+| --- | --- |
+| Queued | Saved and waiting for the sender; refresh for progress |
+| Sending | Submission is in progress; do not queue another message |
+| Accepted by the email server | The server accepted it; this is **not confirmation of inbox delivery** |
+| Email was not sent | A pre-send check failed or the mail server rejected it; review the order/contact and sender |
+| Needs review | The message might have been sent; inspect before any further send |
+| Cancelled before sending | The queued message was stopped because the order was no longer ready |
+
+There is no resend button or automatic retry for failed or uncertain messages. Have the maintainer reconcile an unresolved result against the mail provider and order before another send. Reopening cutting clears readiness and cancels queued mail; a submission already in progress becomes **Needs review**, and an accepted email cannot be recalled. A later refund, cancellation, or order mismatch also stops readiness. Keep the notification and audit history.
+
+Shopify checkout opens directly; an emailed invoice is not required. Shopify sends its order/refund notices. The workshop's separate Ready action sends the pickup/drop-off notice through the application sender. Avoid sending a second ready notice manually from Shopify for the same event. The Shopify sender shows **Authenticated**. The customized order-confirmation template is saved in Shopify and its test message was received at **hello@niceworkshop.ca** in Proton; sender/recipient fields and the rendered body were checked. Refund-notice receipt remains unverified. The saved workshop SMTP connection accepted exactly two test previews. Both pickup and drop-off previews arrived in Proton, with sender and recipient **hello@niceworkshop.ca**; the pickup body was verified. These previews did not change production orders.
+
+Native pickup, installed permissions, release v20, and fresh application order #1004 are verified. Its actual confirmation email arrived in Proton with the correct pickup box, address, weekday hours, 14-day lead time, and green branding. Actual collection or drop-off still needs to be recorded separately from checkout, cutting, readiness, and email delivery.
 
 ## Find tax records and close the books
 
@@ -172,7 +197,11 @@ Verified on October 31, 2026:
 | Partial then full refund — **#1001** | Circle group **$1.86 + $0.24 HST = $2.10** refunded first; remaining rectangle bundle **$5.43 + $0.71 HST = $6.14** refunded next. Total refund **$8.24**. Signed events changed the local status to `partially_refunded`, then `refunded`, with the refund flag set. Original JSON still records the three ordered pieces |
 | Changed order — **#1002** | Intentional Shopify circle-group quantity change **1 → 2** changed the total to **$15.33** against **$13.23** already paid, leaving **$2.10** outstanding. No additional-payment invoice was sent. The local record became `partially_paid`; comparison reported `ORDER_SNAPSHOT_MISMATCH` for changed cut lines/subtotal/total and unpaid balance. Original JSON stayed at three pieces and production remained held |
 | Cancellation and full refund — **#1002** | **More actions → Cancel order**, reason **Other**, restocking off, refund **$13.23** to the original test payment. Shopify showed cancelled/refunded; the local record has a cancellation timestamp, refund flag, `refunded` payment status, and remains uncut |
-| Customer emails | Both Shopify timelines report confirmation/refund messages sent to `hello@niceworkshop.ca`. Actual receipt in the mailbox has **not** been verified |
+| Shopify confirmation email | Customized template saved and previewed; test message and actual #1003/#1004 confirmations received at `hello@niceworkshop.ca`. The #1004 sender/recipient and pickup branch were verified: driveway box, correct address, weekday hours, and 14-day lead time. Saved accent `#3D513E` matches the site. Refund-notice receipt remains unverified |
+| Sender authentication | Six Shopify CNAMEs added; Shopify displays **Authenticated**. Existing DNS unchanged. Application SMTP accepted two test previews; both arrived in Proton from and to hello@niceworkshop.ca |
+| Native pickup after deployment — **#1004** (`18898869944535`) | Release v20: one 100 mm circle in 25 mm birch, $2.54 before tax + $0.33 HST = **$2.87**. Own billing address only, no shipping-address form. Both signed update/payment events processed once without errors; one local paid order, hold only `test_order`, uncut and not ready. Runtime pickup/location proof valid |
+| Earlier native-pickup checks | D6/#1003 standalone test paid $57.40 with 13% HST using Quebec billing. Unpaid D7 was safely quarantined after Shopify did not retain pickup; no payment or invoice email. Isolated validation draft D8 remains unpaid |
+| Separate Ready action | Introduced in v18 and retained in v20; migration 003 applied. Refreshed staff page has three orders and shows Ready emails connected. Paid #1004 has a test-order hold; its Cut/Ready buttons and those of the prior refunded tests are disabled. Two previews accepted and received; pickup body checked |
 | Backups | Daily 03:00 Toronto schedule; b002 schema restore and b003 populated restore passed |
 | Automated tests | Complete suite passed with actual PostgreSQL; see [DEPLOYMENT.md](DEPLOYMENT.md) for the latest count and coverage |
 
@@ -184,7 +213,12 @@ For each further live-store test, record its date, tester, Shopify order number,
 - [x] Deployed checkout rejected an Ottawa delivery address with HTTP 400. Replaying an existing signed test event with the same delivery ID returned HTTP 200 and left counts unchanged: two orders, thirteen deliveries, four checkout attempts. Repeating the delivery checkout with its original request key reused the same attempt and checkout URL.
 - [x] Test partial/full refunds, order editing, and cancellation; verify Shopify status, signed events, local financial state, production holds, and preservation of the original cuts.
 - [x] Two unpaid drafts remained without workshop orders while the two paid drafts each created one order. Automated database tests cover uncertain creation outcomes and prevent automatic duplicate creation; deliberately disrupting the external provider was not required. Uncertain outcomes still need the manual reconciliation described above.
-- [ ] Confirm customer-facing terms and pickup/delivery instructions; check actual mailbox receipt of confirmation/refund notices and test readiness/handoff independently from the cut flag.
+- [x] Record approved pickup/drop-off instructions and weekday 9am–7pm Toronto hours; authenticate the Shopify sender with its six CNAMEs.
+- [x] Save and preview the customized Shopify order-confirmation template; verify its test email in the `hello@niceworkshop.ca` Proton inbox.
+- [x] Use the customer’s own billing address as the pickup backup address; confirm it before any later delivery. The order stays free pickup until a change is agreed.
+- [x] Deploy Ready and migration 003, verify the connected sender and blocked test orders on the staff page, and receive both SMTP previews in Proton.
+- [x] Verify installed native-pickup read permissions, release v20, and fresh application checkout #1004: own billing only, correct HST, signed event processing, immutable cuts, permanent test hold, and received confirmation.
+- [ ] Confirm customer-facing terms, verify refund notices, and test actual order handoff independently from the cut flag.
 - [x] Test a populated database backup and restore, including cut snapshots, signed events, audit history, and production holds.
 - [x] Open this store's Taxes and Total sales by order reports and verify export controls. Both currently show no data for the selected test-only period; no export file was produced.
 - [ ] Verify payment/payout export access and reconcile the first live sale, tax, fees, refund if applicable, and bank payout. Test transactions do not establish live report-to-bank reconciliation.
@@ -192,7 +226,7 @@ For each further live-store test, record its date, tester, Shopify order number,
 - [x] Shopify displays **Inactive** and **Your shop is ready to use Shopify Payments**; payout account connection, CAD, and **Weekly on Monday** are verified in the UI. No payment setting was changed.
 - [x] Saved payment capture method is **Automatically at checkout**; verified read-only with Save disabled, then closed without changes.
 - [x] Configure `www.niceworkshop.ca` with a valid Heroku-managed certificate; HTTPS returns the site. Application origin is now `https://www.niceworkshop.ca`; existing Shopify webhook URLs remain on the stable Heroku hostname.
-- [x] Verify the `niceworkshop.ca` root-domain HTTPS redirect, public DNS, and path/query preservation. All eight original non-website DNS records retained their exact values and TTLs, including Proton MX, SPF/verification, three DKIM selectors, and DMARC. Public MX still points to Proton; this does not verify mailbox send/receive.
+- [x] Verify the `niceworkshop.ca` root-domain HTTPS redirect, public DNS, and path/query preservation. All eight original non-website DNS records retained their exact values and TTLs, including Proton MX, SPF/verification, three DKIM selectors, and DMARC. Public MX still points to Proton. Subsequent Shopify confirmation and application SMTP preview tests verified receipt separately from the DNS checks.
 - [ ] Only after the owner's explicit later authorization and all checks pass, deliberately replace the Test payment gateway with the approved live provider and enable live checkout; verify customer-facing mode again.
 
 The current gateway is Shopify's official **Test payment gateway**, not an activated real Shopify Payments account. For future Shopify Payments testing after onboarding, use **Settings → Payments → Shopify Payments → Manage → Test mode → Enable test mode → Save**. Verify the test indicator on resulting orders. Test mode does not capture real payments; simulated Shopify Payments transactions do not appear in payouts/reports. [Shopify Payments testing](https://help.shopify.com/en/manual/payments/shopify-payments/testing-shopify-payments).

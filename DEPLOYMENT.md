@@ -9,14 +9,14 @@ Verified October 31, 2026. This document records the running environment and the
 | Public app | https://www.niceworkshop.ca/ |
 | Staff page | https://www.niceworkshop.ca/staff |
 | Heroku app | `niceworkshop-ca` |
-| Deployment | Code release `v12`, commit `92e9eb6` (canonical hostname fix); configuration release `v13` sets the new public origin |
+| Deployment | **v21**, Heroku deployment commit `81750de`, from source `7d71277`; schema current. Native pickup verified in v20 through fresh application order #1004 |
 | Region / stack | `us` / `heroku-24` |
 | Runtime | Node.js 24; one always-on Basic web dyno |
 | Database | Separate Heroku Postgres Essential-0 |
 | Approved baseline cost | US$7/month web + US$5/month database = US$12/month, excluding tax, currency conversion, and any additional usage/add-ons |
 | Shopify store | Nice Workshop — `waj4za-5t.myshopify.com` |
 | Installed Shopify app | Nice Workshop Orders; app ID `442209927169`, organization `236066190` |
-| App permissions | `read_orders`, `write_draft_orders` |
+| App permissions | Installed and verified: `read_orders`, `write_draft_orders`, `read_locations`, `read_merchant_managed_fulfillment_orders` |
 | Customer service | `hello@niceworkshop.ca` |
 | Canonical domain | `www.niceworkshop.ca`; verified HTTPS and root-domain redirect with path/query preservation |
 
@@ -49,6 +49,8 @@ Store runtime secrets in this app's Heroku configuration, never in source files 
 | `HST_REGISTRATION_CONFIRMED` | Currently `true`; active registration and saved Canada collection verified |
 | `LIVE_CHECKOUT_VERIFIED` | Currently `false`; leave false until all launch checks pass and the owner explicitly authorizes activation |
 
+The deployed Ready-email implementation also uses `EMAIL_ENABLED`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_FROM`, and `EMAIL_REPLY_TO`. **SMTP connection and preview delivery are verified:** exactly two previews were accepted and both received in Proton, from and to `hello@niceworkshop.ca`. Nonsecret settings were prepared in release `v16`, and the owner subsequently saved `SMTP_PASSWORD` directly in Heroku. Defaults are `smtp.protonmail.ch`, submission port 587, and sender/reply address `hello@niceworkshop.ca`. The sender requires dedicated credentials, STARTTLS, and a verified server certificate. Keep credentials in Heroku configuration or an ignored local environment file; never copy them into documentation, screenshots, or logs. Shopify sender authentication does not configure these application credentials.
+
 Checkout requires an enabled flag, a database, a configured Shopify client, a public origin, and the relevant mode confirmations. `test` mode requires confirmed provider test mode. `live` mode requires confirmed HST registration and completed live-readiness verification. These flags do not themselves enable or disable Shopify's gateway; verify the provider state separately. To close checkout immediately, set `CHECKOUT_ENABLED=false` on `niceworkshop-ca` and verify `/api/config` reports checkout disabled.
 
 The database connection verifies the certificate chain and server hostname. Heroku Essential/Advanced databases use AWS RDS certificates; Heroku's stack includes the required CA bundle. For external local checks, download the [official AWS RDS global bundle](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem) and set `DATABASE_CA_FILE` to its path. Do not fix certificate errors by disabling verification. An actual authenticated connection to this database was verified with `authorized=true`, TLS 1.3, and a successful `SELECT 1`. [Heroku certificate instructions](https://devcenter.heroku.com/articles/connecting-heroku-postgres).
@@ -57,6 +59,8 @@ The database connection verifies the certificate chain and server hostname. Hero
 
 The `Procfile` runs `npm run db:migrate` as the release command and `npm start` as the web process. Migrations use a transaction, advisory lock, and checksums; an applied migration must never be edited in place. Add a new numbered migration for a schema change. Both `001_initial.sql` and `002_checkout_metadata.sql` are applied.
 
+`003_ready_notifications.sql` was **applied in production with release v18**. It adds readiness fields and a durable notification queue with immutable message snapshots. All three migrations are now applied; the earlier backup evidence below remains a record of its original two-migration capture.
+
 Before deploying, run the complete local test suite with a disposable PostgreSQL database and inspect the source package. Exclude `.env`, `.private/`, backup files, and test data. Preserve the repository's existing storefront edits. Deploy only the explicitly identified Nice Workshop app, then verify the release succeeded, `/healthz`, `/readyz`, `/api/config`, and the staff page. Check that checkout remained in its intended mode.
 
 Heroku release rollback changes application code; it does not undo committed database migrations. Keep migrations compatible with rollback where possible. Review a database restoration separately rather than treating code rollback as database recovery.
@@ -64,6 +68,47 @@ Heroku release rollback changes application code; it does not undo committed dat
 The web process polls the durable webhook inbox every three seconds. HMAC verification and database persistence happen before the HTTP acknowledgement. Processing verifies the order against its immutable cut/price/fulfillment snapshot, deduplicates repeated events, and holds edited, refunded, cancelled, mismatched, or test orders. Test purchases are never eligible for actual cutting. The independent `scripts/process-webhooks.js` entry point can run a bounded processing batch for recovery; it reports counts rather than customer payloads.
 
 The installed app is registered for `orders/paid`, `orders/updated`, `orders/cancelled`, and `refunds/create` at `https://niceworkshop-ca-b8d9f27f02c2.herokuapp.com/api/webhooks/shopify`. Actual signed payment events were persisted and processed for both test orders below. Do not expose a manually constructed unsigned event endpoint or treat a browser return as payment confirmation.
+
+## Ready emails and sender authentication
+
+The workflow was introduced from source `9b3b055` in release **v18** and is retained in **v20**, with migration 003 applied and SMTP preview delivery verified. `POST /api/admin/orders/:orderId/ready` accepts `expectedRevision` and requires an explicit staff click. It verifies a paid, fully cut, unheld, unrefunded, uncancelled order against Shopify, then records readiness and one email snapshot in a transaction. Repeated requests return the existing notification. The staff API cannot override the recipient or body. Marking an order cut does not send an email.
+
+The existing web process handles queued messages after its webhook batch every three seconds, without another dyno. It rechecks the order and recipient before submission. Reopening cutting or a disqualifying order update clears readiness and cancels queued messages; submissions already in progress are held for review. A sending record older than ten minutes becomes `needs_review`, never an automatic resend. `sent` means SMTP acceptance, **not inbox delivery**. Failed or uncertain results require reconciliation; there is no resend button.
+
+Pickup and drop-off templates use **Monday–Friday, 9am–7pm Toronto time**. Pickup identifies the driveway box and confirmed workshop address; drop-off promises a separate email confirming the particular time. Replies go to `hello@niceworkshop.ca`. Until the sender is connected, the UI disables Ready and displays **Email sending isn’t connected yet**. Existing test orders stay blocked regardless of email setup.
+
+Generate local previews with `node scripts/send-email-previews.js`; it writes HTML/plain text to ignored `output/email-previews/` without sending. After checking the saved SMTP configuration, `node scripts/send-email-previews.js --send` submits exactly two clearly labelled test previews to `hello@niceworkshop.ca`. Inspect its receipt file and mailbox before repeating an uncertain attempt. SMTP acceptance and actual inbox receipt must be verified separately. The completed run reported **two accepted previews**, and **both were received in Proton**, from and to `hello@niceworkshop.ca`. The pickup body was checked. No production order was marked ready by this preview run.
+
+Six Shopify sender-authentication CNAMEs were added to Route 53, leaving all existing DNS records unchanged. Shopify now displays **Authenticated**; the private evidence is `.private/email-proof/shopify-sender-authenticated.png`. Retain these records alongside the existing Proton records. This authentication covers Shopify's sender and does not establish an SMTP connection for the workshop app. The owner saved the dedicated SMTP password, and separate application SMTP tests subsequently verified acceptance and receipt of both previews. Shopify sender authentication and application SMTP are independent checks.
+
+The Shopify order-confirmation template was saved through Shopify admin and its preview rendered successfully. The full template is tracked in `shopify/notifications/order-confirmation.liquid`; its custom introduction is also kept in `shopify/notifications/order-confirmation-intro.liquid`. An explicit Shopify test send was then **received at hello@niceworkshop.ca in Proton**, with sender/recipient fields and rendered body verified. Actual paid test orders **#1003** and **#1004** also produced confirmations received at `hello@niceworkshop.ca`. The #1004 sender/recipient and rendered pickup branch were verified: driveway box, correct address, weekday hours, and 14-day lead time. Shopify’s saved email accent is **#3D513E**, matching the storefront. Application SMTP was verified separately with the two previews above; refund-notice receipt remains unverified.
+
+A final staff refresh showed **three local orders** and **Ready emails are connected**. #1004 displayed paid in full with a test-order hold; both its **Cut** and **Ready** buttons were disabled. The two earlier refunded test orders remained blocked as well.
+
+## Native pickup implementation and verification
+
+Native pickup is deployed in **v20**, Heroku commit `d6dc38e`, from source `64ac888`, with the schema current. Shopify pickup is configured at workshop location **94464344279**. The owner-approved scopes **`read_locations`** and **`read_merchant_managed_fulfillment_orders`** are installed and verified; the active app version is **2026-10-31-pickup-location**.
+
+New pickup drafts use the native pickup option and `shippingAddress: {countryCode: 'CA'}` to supply country context. Shopify did not retain the native pickup rate when the country was omitted. No street, customer name, or billing address is seeded by that payload. The tested checkout shows no shipping-address form and asks the customer to enter their own billing address. The paid order's `shipping_address` is null; the runtime client independently verifies `PICK_UP` and the assigned workshop location before accepting it. Legacy checkout snapshots retain their original validation rules.
+
+The owner approved using only the billing address as the backup address. Confirm it with the customer before any later change to delivery, including eligibility and charges; free pickup remains selected until a change is agreed.
+
+The fresh v20 application checkout was verified end to end:
+
+| Record | Verified result |
+| --- | --- |
+| Shopify order | **#1004**, ID `18898869944535` |
+| Draft / checkout attempt | Draft `1619907018967`; attempt `b454e3fb-09dc-4337-8a71-5b461a93bc32` |
+| Local order | `ce3ecb65-b0a7-451b-ae6a-865c0b7fd39f` |
+| Saved cuts | One 100 mm circle in 25 mm birch, quantity one |
+| Checkout | No shipping-address form; blank own-billing form completed with a Quebec test address |
+| Amount | $2.54 before tax + **$0.33 HST** = **$2.87**, paid through the Test payment gateway |
+| Signed events | `orders/updated` and `orders/paid` processed once each, without errors |
+| Stored state | Paid, hold **only `test_order`**, `is_cut=false`, `ready_at=null`; original cut snapshot preserved |
+| Native proof | Runtime pickup/location verification returned `valid: true`; Shopify `shipping_address` was null |
+| Confirmation | Received in Proton from/to `hello@niceworkshop.ca`; correct pickup address/box, weekday hours, 14-day lead time, and green branding |
+
+Earlier test evidence is retained separately. D6/#1003 proved native pickup with Quebec billing, 13% HST, and a $57.40 test total. After v19, unpaid D7 (`1619905970391`, request key `d3c0a697-93df-4b6e-947c-ed9a404b239b`) was quarantined for reconciliation when Shopify did not preserve the pickup option; it took no payment and sent no invoice email. Do not reuse that uncertain attempt. The isolated country-context validation draft D8 (`1619906756823`) remains unpaid. The corrected v20 result above is the completed application checkout proof. No real money moved in these tests.
 
 ## Local development and tests
 
@@ -77,7 +122,9 @@ NICE_TEST_POSTGRES_BIN=/absolute/path/to/postgresql/bin scripts/test-db-local.sh
 
 The supplied directory must contain `postgres`, `initdb`, and `pg_ctl`. The helper binds a fresh cluster to loopback on an available port, creates a disposable database, runs tests, and stops/removes that cluster. It never starts or changes a system PostgreSQL service. Each database test suite uses its own generated schema.
 
-Latest complete run: **74 tests passed, zero failures and zero skips**, using actual PostgreSQL 17. Tests include exact price calculations, invalid/tampered cuts, checkout races and uncertain external outcomes, staff authorization, HTTPS enforcement, webhook signature checks, out-of-order/refund/cancellation events, permanent test-order holds, database constraints, immutable snapshots, and atomic cutting/audit transitions. Live provider checks remain separate from these local results.
+Release **v21** removes the owner-requested statutory-rights sentence from the checkout checkbox and records wording version `2026-10-31.2`. It adds no billing-province restriction. All 16 focused storefront/HTTP checks passed after this wording revision.
+
+Latest complete local run: **116/116 tests passed**, including actual PostgreSQL integration tests and the native-pickup changes. The corrected native-pickup implementation is deployed in v20 and its fresh application checkout is verified. Ready and SMTP preview delivery were verified separately. The earlier deployment was verified with 74 tests and the focused domain tests recorded below. Tests include exact price calculations, invalid/tampered cuts, checkout races and uncertain external outcomes, staff authorization, HTTPS enforcement, webhook signature checks, out-of-order/refund/cancellation events, permanent test-order holds, database constraints, immutable snapshots, and atomic cutting/audit transitions. Live provider checks remain separate from these local results.
 
 ## Verified Shopify test payments
 
@@ -96,7 +143,7 @@ Actual adjustment tests also passed:
 - **Delivery #1002 — edit:** intentionally changed the circle bundle's Shopify quantity to two. The Shopify order total became $15.33 against $13.23 already paid, leaving $2.10 outstanding. The local order became `partially_paid`, retained its original cut snapshot, and stayed on hold for the mismatch; the changed Shopify quantity did not silently rewrite production cuts.
 - **Delivery #1002 — cancellation:** cancelled the edited order and refunded the full $13.23 actually paid. Shopify displayed cancelled/refunded; the local record was refunded and cancelled, retained its original three pieces, and remained uncut.
 
-The application checks and hosted test-gateway scenarios above are complete. Remaining work is delivered email and handoff confirmation, payment/payout export access, and reconciliation after the first live sale/payout. Activation remains deferred until explicit owner authorization. The Taxes and Total sales by order screens and export controls were also verified in this store; both showed no data for the selected test-only period. No export file was produced, and payment/payout export access remains unverified.
+The application checks and hosted test-gateway scenarios above are complete. Remaining work is refund-notice and actual handoff confirmation, payment/payout export access, and reconciliation after the first live sale/payout. The Shopify order-confirmation test has been received and verified. Activation remains deferred until explicit owner authorization. The Taxes and Total sales by order screens and export controls were also verified in this store; both showed no data for the selected test-only period. No export file was produced, and payment/payout export access remains unverified.
 
 ## Backups and restore evidence
 
@@ -144,14 +191,14 @@ Public verification confirmed:
 - A browser opening the root reached the `www` storefront with its test-mode banner.
 - The original Heroku staff URL returned **308** to the matching `www` path with its query retained; the Heroku health endpoint remained directly available.
 
-The pre-change Route 53 snapshot is saved locally in ignored `.private/route53-before-domain-setup.txt`. An exact before/after comparison confirmed all **eight original non-website records** retained their values and TTLs: MX, NS, SOA, apex TXT, DMARC, and three DKIM records. These include Proton's MX, SPF, and verification data. Public MX still resolves to Proton. No mailbox send/receive test was performed.
+The pre-change Route 53 snapshot is saved locally in ignored `.private/route53-before-domain-setup.txt`. An exact before/after comparison confirmed all **eight original non-website records** retained their values and TTLs: MX, NS, SOA, apex TXT, DMARC, and three DKIM records. These include Proton's MX, SPF, and verification data. Public MX still resolves to Proton. Later Shopify confirmation and application SMTP preview tests were received in Proton; these delivery checks were separate from the DNS comparison.
 
 Keep the ACM validation CNAME for automatic renewal: `_654fabb0e13bd7e5daa7417eb5a894c5.niceworkshop.ca` → `_f8fcd9845f9a8539f8de050438072ac1.wzccmgtwzk.acm-validations.aws.` Do not remove this record after certificate issuance. The CloudFront console still showed deployment in progress at the final recorded check, while the published redirect was already serving correctly in public tests. Domain setup does not authorize payment activation; the official Test payment gateway remains active.
 
 ## Remaining launch checks
 
 1. Respect the owner's decision to defer activation. Business-verification steps are owner-reported complete as of October 31, 2026. The Shopify UI now shows **Inactive** and **Your shop is ready to use Shopify Payments**; **Activate** would replace the current test gateway. Payout account connection, CAD, and **Weekly on Monday** are UI verified. These observations confirm the displayed readiness, without asserting additional underwriting status. The saved capture method **Automatically at checkout** is also verified; its dialog showed Save disabled and was closed without changes. See [payment verification and deferred activation](OPERATIONS.md#payment-verification-and-deferred-activation). Leave `LIVE_CHECKOUT_VERIFIED=false` and the Test payment gateway active until all checks pass and the owner explicitly authorizes activation.
-2. Confirm the actual receipt/notification email arrives in the intended Proton mailbox and contains the expected order and pickup/delivery details; verify readiness/handoff separately from the cutting flag.
+2. Confirm customer-facing terms, refund-notice receipt, and actual order handoff. Native pickup v20/#1004, its signed-event reconciliation, installed read permissions, Ready/migration 003, both SMTP previews, and the customized confirmation receipt are verified. Keep readiness/handoff separate from cutting.
 3. Verify payment/payout export access, then after the first authorized live sale and resulting payout reconcile the order, tax, any fees, bank deposit, and Shopify report exports. Sales/tax report-screen access is verified; test-gateway payments cannot prove live settlement or payout reporting.
 
 Only after explicit later owner authorization and completion of the launch checks, deliberately switch the gateway and application to the approved live configuration and verify the public status again. Do not infer authorization or live readiness from completed verification steps, a successful deployment, or a test payment.
