@@ -151,7 +151,7 @@ test('a known unfinished draft retains its ID for reconciliation instead of crea
   assert.equal(creates,1);assert.equal(reads,7);
 });
 
-test('native pickup looks up the approved location and never prefills the buyer shipping or billing address',async()=>{
+test('native pickup retains its rate with country-only context and never prefills the buyer street or billing address',async()=>{
   const {PICKUP_OPTIONS,READY_DRAFT,METHOD}=require('../server/native-pickup');
   const request=makeRequest();request.fulfillmentConfig.pickup.nativePickupLocationId='gid://shopify/Location/94464344279';
   const rate={locationId:request.fulfillmentConfig.pickup.nativePickupLocationId,handle:'current-pickup-rate',code:'Shop location',source:'shopify',title:'Shop location'};
@@ -165,14 +165,14 @@ test('native pickup looks up the approved location and never prefills the buyer 
     if(query===READY_DRAFT){reads++;return {draftOrder:draftResponse({shippingLine:line}).draftOrderCreate.draftOrder};}
     creates++;
     assert.deepEqual(variables.input.shippingLine,{shippingRateHandle:rate.handle});
-    assert.equal(variables.input.shippingAddress,undefined);assert.equal(variables.input.billingAddress,undefined);
+    assert.deepEqual(variables.input.shippingAddress,{countryCode:'CA'});assert.equal(variables.input.billingAddress,undefined);
     return draftResponse({ready:false,invoiceUrl:null,shippingLine:line});
   }};
   const response=await createCheckout(pool,client,request);
   assert.equal(response.state,'ready');
   const metadata=[...pool.rows.values()][0].metadata;
   assert.equal(metadata.fulfillmentMethod,METHOD);assert.deepEqual(metadata.nativePickup,rate);
-  assert.deepEqual(metadata.fulfillmentAddress,address);assert.equal(metadata.draftInput.shippingAddress,undefined);
+  assert.deepEqual(metadata.fulfillmentAddress,address);assert.deepEqual(metadata.draftInput.shippingAddress,{countryCode:'CA'});
   assert.ok(metadata.draftInput.customAttributes.some(a=>a.key==='nice_workshop_fulfillment_method'&&a.value===METHOD));
   assert.equal((await createCheckout(pool,client,request)).reused,true);
   assert.deepEqual([lookups,creates,reads],[1,1,1]);
@@ -191,6 +191,7 @@ test('native pickup cannot fall back to an unavailable or custom shipping rate',
     : draftResponse({shippingLine:{custom:true,deliveryCategory:null,code:rate.code,source:rate.source,title:rate.title}})};
   await assert.rejects(createCheckout(pool,custom,request),{code:'CHECKOUT_NEEDS_RECONCILIATION'});
   assert.equal([...pool.rows.values()][0].state,'needs_reconciliation');
+  assert.equal([...pool.rows.values()][0].last_error_code,'SHOPIFY_PICKUP_NOT_CONFIRMED');
 });
 
 test('a confirmed Shopify validation rejection is recorded without exposing upstream messages', async () => {

@@ -225,8 +225,9 @@ function shippingAddress(address) {
  * Pickup's address is the agreed collection destination. Delivery requires an
  * independently checked service area/address and an explicitly before-tax fee.
  * Without options.nativePickup this preserves the original custom rate format.
- * Native pickup requires a fresh, verified location/rate from Shopify; it omits
- * shippingAddress so the buyer enters their own billing address at checkout.
+ * Native pickup requires a fresh, verified location/rate from Shopify. A country
+ * context is required for Shopify to retain that rate; no street/name is seeded,
+ * so the buyer enters their own billing address at checkout.
  */
 function buildDraftOrderInput(quote, options = {}) {
   if (options.taxPolicy !== 'shopify_authoritative') {
@@ -274,7 +275,7 @@ function buildDraftOrderInput(quote, options = {}) {
       { key: 'nice_workshop_catalogue_hash', value: verified.catalogueHash },
       { key: 'nice_workshop_fulfillment', value: verified.fulfillment },
     ],
-    ...(nativePickup ? {} : {shippingAddress: address}),
+    shippingAddress: nativePickup ? {countryCode:'CA'} : address,
     shippingLine: nativePickup ? {shippingRateHandle:nativePickup.handle} : { title: fulfillment.title.trim(), priceWithCurrency: shippingPrice },
     lineItems: verified.cuts.map((cut, index) => {
       const sheet = verified.catalogueSnapshot.sheets.find(item => item.id === cut.sheetId);

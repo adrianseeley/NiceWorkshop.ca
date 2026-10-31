@@ -125,7 +125,14 @@ test('native pickup needs independent method/location proof and keeps legacy add
   const {attempt,payload}=fixture({nativePickup:true});
   payload.billing_address={address1:'123 Example Street',city:'Gatineau',province_code:'QC',country_code:'CA',zip:'J8X1A1'};
   const options={...OPTIONS,pickupEvidence:{orderId:String(payload.id),valid:true}};
+  assert.deepEqual(attempt.metadata.draftInput.shippingAddress,{countryCode:'CA'});
   assert.deepEqual(validateOrderSnapshot(payload,attempt,options),{valid:true,reasons:[]});
+  for(const shippingAddress of [{countryCode:'US'},{countryCode:'CA',address1:ADDRESS.address1},{}]) {
+    const changed=clone(attempt);changed.metadata.draftInput.shippingAddress=shippingAddress;
+    assert.ok(validateOrderSnapshot(payload,changed,options).reasons.includes('checkout_metadata_invalid'));
+  }
+  const previousNative=clone(attempt);delete previousNative.metadata.draftInput.shippingAddress;
+  assert.equal(validateOrderSnapshot(payload,previousNative,options).valid,true);
   for(const evidence of [undefined,{orderId:payload.id,valid:false},{orderId:'999',valid:true}]) {
     assert.ok(validateOrderSnapshot(payload,attempt,{...OPTIONS,pickupEvidence:evidence}).reasons.includes('native_pickup_mismatch'));
   }

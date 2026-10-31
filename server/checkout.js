@@ -141,7 +141,8 @@ async function createCheckout(pool, shopifyClient, { input, idempotencyKey, fulf
     }
     if (!draftId || draft?.ready !== true || !Array.isArray(payload?.userErrors) || payload.userErrors.length
       || (nativePickup && !confirmedPickupDraft(draft,nativePickup))) {
-      failureCode = draftId ? 'SHOPIFY_DRAFT_NOT_READY' : 'SHOPIFY_DRAFT_RESPONSE_INVALID';
+      failureCode = draftId ? (draft?.ready === true && nativePickup && !confirmedPickupDraft(draft,nativePickup)
+        ? 'SHOPIFY_PICKUP_NOT_CONFIRMED' : 'SHOPIFY_DRAFT_NOT_READY') : 'SHOPIFY_DRAFT_RESPONSE_INVALID';
       throw new CheckoutError('CHECKOUT_NEEDS_RECONCILIATION', 'Shopify has not confirmed a ready checkout. The workshop must review it before another link is created.', 503);
     }
     const checkoutUrl = verifyCheckoutUrl(draft.invoiceUrl, shopDomain);

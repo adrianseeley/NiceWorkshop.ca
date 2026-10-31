@@ -78,7 +78,8 @@ function validateOrderSnapshot(payload, attempt, { shopDomain, pickupEvidence } 
   if (nativePickup && (attempt.fulfillment !== 'pickup' || metadata.shippingPriceCents !== 0
     || !/^gid:\/\/shopify\/Location\/[1-9]\d*$/.test(metadata.nativePickup?.locationId || '')
     || !['code','source','title'].every(key=>typeof metadata.nativePickup[key]==='string' && metadata.nativePickup[key])
-    || !draft.shippingLine?.shippingRateHandle || draft.shippingAddress !== undefined)) fail('checkout_metadata_invalid');
+    || !draft.shippingLine?.shippingRateHandle
+    || (draft.shippingAddress !== undefined && stable(draft.shippingAddress) !== stable({countryCode:'CA'})))) fail('checkout_metadata_invalid');
   for (const [key, value] of Object.entries({ nice_workshop_reference: attempt.id,
     nice_workshop_catalogue_hash: attempt.catalogue_hash, nice_workshop_fulfillment: attempt.fulfillment,
     nice_workshop_terms_version: metadata.termsVersion })) {
