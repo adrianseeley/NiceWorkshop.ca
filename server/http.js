@@ -10,6 +10,7 @@ const { verifyWebhook, receiveWebhook } = require('./webhooks');
 const { createCheckout } = require('./checkout');
 const { markOrderReady } = require('./notifications');
 const { TERMS_VERSION, fulfillmentConfig, checkoutSettings } = require('./settings');
+const { analyticsSettings, botTrafficMiddleware } = require('./analytics');
 const ROOT = path.resolve(__dirname, '..');
 function createApp({ pool = null, shopifyClient = null, mailSender = null, env = process.env } = {}) {
   const app = express();
@@ -34,8 +35,15 @@ function createApp({ pool = null, shopifyClient = null, mailSender = null, env =
       return next();
     });
   }
-  app.get('/api/config', (_req, res) => res.set('Cache-Control', 'no-store').json(checkoutSettings(env, pool, shopifyClient)));
-  app.use(helmet({ contentSecurityPolicy: { directives: { upgradeInsecureRequests: env.NODE_ENV === 'production' ? [] : null } } }));
+  const analytics = analyticsSettings(env);
+  app.get('/api/config', (_req, res) => res.set('Cache-Control', 'no-store').json({
+    ...checkoutSettings(env, pool, shopifyClient), analytics
+  }));
+  app.use(helmet({ contentSecurityPolicy: { directives: {
+    upgradeInsecureRequests: env.NODE_ENV === 'production' ? [] : null,
+    connectSrc: ["'self'", ...(analytics.enabled ? [analytics.host] : [])]
+  } } }));
+  app.use(botTrafficMiddleware(env));
   app.use('/api', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   app.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
   app.get('/readyz', async (_req, res) => {
@@ -95,8 +103,9 @@ function createApp({ pool = null, shopifyClient = null, mailSender = null, env =
   });
   app.get('/staff', (_req, res) => res.set('Cache-Control', 'no-store').sendFile(path.join(ROOT, 'staff.html')));
   app.get('/staff.js', (_req, res) => res.sendFile(path.join(ROOT, 'staff.js')));
+  app.get('/privacy', (_req, res) => res.sendFile(path.join(ROOT, 'privacy.html')));
   // Never serve the repository root: it contains secrets, source and operations.
-  for (const file of ['index.html', 'app.js', 'styles.css', 'favicon.svg', 'materials.json']) {
+  for (const file of ['index.html', 'app.js', 'analytics.js', 'styles.css', 'favicon.svg', 'materials.json', 'nice-workshop-family.webp', 'mighty-fine-pastries.webp']) {
     app.get(file === 'index.html' ? ['/', '/index.html'] : `/${file}`, (_req, res) => res.sendFile(path.join(ROOT, file)));
   }
   app.use((_req, res) => res.status(404).json({ error: 'Not found.' }));

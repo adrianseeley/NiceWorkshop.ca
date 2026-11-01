@@ -1,6 +1,6 @@
 # Nice Workshop deployment and recovery
 
-Verified October 31, 2026. This document records the running environment and the checks already completed. [OPERATIONS.md](OPERATIONS.md) covers business procedures; [PRICING.md](PRICING.md) covers pricing. **Every Heroku command for this project must explicitly target `niceworkshop-ca`. Never use Mighty Fine Orders or its database.**
+Updated November 1, 2026. This document records the running environment and the checks already completed. [OPERATIONS.md](OPERATIONS.md) covers business procedures; [PRICING.md](PRICING.md) covers pricing. **Every Heroku command for this project must explicitly target `niceworkshop-ca`. Never use Mighty Fine Orders or its database.**
 
 ## Current environment
 
@@ -9,8 +9,8 @@ Verified October 31, 2026. This document records the running environment and the
 | Public app | https://www.niceworkshop.ca/ |
 | Staff page | https://www.niceworkshop.ca/staff |
 | Heroku app | `niceworkshop-ca` |
-| Last code deployment | **v22**, Heroku deployment commit `748461d`, from source `abb3e76`; schema current. Pickup review explicitly tells customers to wait for the Ready email. Native pickup verified in v20 through fresh application order #1004 |
-| Live configuration release | **v24**, October 31, 2026; Shopify Payments accepts payments with test mode off, and public checkout reports `mode: live` |
+| Last code deployment | **v29**, succeeded November 1, 2026 at 05:57:36 America/Toronto, Heroku deployment commit `2f57f857`; two complete introduction callouts and a Mighty Fine photo tile. Automatic analytics remains enabled; native pickup was verified in v20 through fresh application order #1004 |
+| Live configuration release | **v26**, November 1, 2026; analytics and crawler reporting enabled. Public checkout remains enabled with `mode: live`; payment activation was v24 on October 31 |
 | Region / stack | `us` / `heroku-24` |
 | Runtime | Node.js 24; one always-on Basic web dyno |
 | Database | Separate Heroku Postgres Essential-0 |
@@ -125,7 +125,7 @@ The supplied directory must contain `postgres`, `initdb`, and `pg_ctl`. The help
 
 Release **v21** removes the owner-requested statutory-rights sentence from the checkout checkbox and records wording version `2026-10-31.2`. It adds no billing-province restriction. All 16 focused storefront/HTTP checks passed after this wording revision.
 
-Latest complete local run: **116/116 tests passed**, including actual PostgreSQL integration tests and the native-pickup changes. The corrected native-pickup implementation is deployed in v20 and its fresh application checkout is verified. Ready and SMTP preview delivery were verified separately. The earlier deployment was verified with 74 tests and the focused domain tests recorded below. Tests include exact price calculations, invalid/tampered cuts, checkout races and uncertain external outcomes, staff authorization, HTTPS enforcement, webhook signature checks, out-of-order/refund/cancellation events, permanent test-order holds, database constraints, immutable snapshots, and atomic cutting/audit transitions. Live provider checks remain separate from these local results.
+Historical pre-analytics complete local run: **116/116 tests passed**, including actual PostgreSQL integration tests and the native-pickup changes. The later analytics implementation passed **131/131** complete tests, followed by **20/20 targeted checks** for v27; see the analytics verification below. The corrected native-pickup implementation was deployed in v20 and its fresh application checkout verified. Ready and SMTP preview delivery were verified separately. The earlier deployment was verified with 74 tests and the focused domain tests recorded below. Tests include exact price calculations, invalid/tampered cuts, checkout races and uncertain external outcomes, staff authorization, HTTPS enforcement, webhook signature checks, out-of-order/refund/cancellation events, permanent test-order holds, database constraints, immutable snapshots, and atomic cutting/audit transitions. Live provider checks remain separate from these local results.
 
 ## Verified Shopify test payments
 
@@ -211,3 +211,43 @@ The following work remains after activation:
 3. Check Shopify's payout status after the displayed November 4 resumption date and confirm the actual payout schedule and bank receipt. Do not treat the activation banner as proof that a deposit has already occurred.
 
 PayPal Express Checkout was deactivated for testing on October 31, 2026 and remains inactive. The owner-authorized launch uses Shopify Payments; any later PayPal offering is a separate decision.
+
+## Analytics — November 1, 2026
+
+**Automatic analytics is live:** Heroku release **v27**, commit `9320513a`, succeeded on November 1, 2026 at **05:26 America/Toronto**. Analytics starts automatically when configuration permits, with no banner or footer privacy/preference controls. The standalone `/privacy` page remains available without a footer link. Previously stored denials, GPC/DNT signals, and owner exclusions still prevent browser analytics. All **20 targeted tests passed** for this change: 10 client, 5 application, and 5 server tests.
+
+**v27 production verification:** `/healthz`, `/readyz`, `/api/config`, `/analytics.js`, and the homepage returned HTTP 200. Production analytics JavaScript is byte-identical to the tested automatic version. The reloaded homepage loads `analytics.js?v=2`, contains zero analytics controls, and has only the email link in its footer. The no-banner screenshot was saved as `no-banner.jpg`.
+
+The original opt-in implementation was deployed in **v25**, commit `96791127`, and enabled by configuration release **v26**. The isolated deployments contain only runtime files; analytics adds no database or migration. Existing live checkout and its paid-order records are independent of this feature.
+
+PostHog project **Nice Workshop**, ID **702454**, is connected in the **US** region with timezone **America/Toronto** and currency **CAD**. The verified **Free** plan has no payment card and includes **1,000,000 analytics events/month**; excess is dropped rather than billed. Do not enable paid usage, session replay, person profiles, or additional products as part of this setup. Existing approved hosting remains US$12/month; that is not the total of Shopify, domain, DNS, email, and payment-processing expenses. [PostHog pricing](https://posthog.com/pricing).
+
+On Heroku app `niceworkshop-ca`, the configuration is `ANALYTICS_ENABLED=true`, `ANALYTICS_BOT_TRACKING_ENABLED=true`, `POSTHOG_HOST=https://us.i.posthog.com`, with the public ingestion token in `POSTHOG_PROJECT_TOKEN`. `PUBLIC_ORIGIN` remains `https://www.niceworkshop.ca`. Never put the token or any personal API key in documentation.
+
+**Original v25–v26 verification:** all **131 local tests passed**, with a disposable PostgreSQL database and zero skipped; syntax and diff whitespace checks passed. The deployed `/healthz` and `/readyz` returned HTTP 200 with `ok` and `ready`; `/api/config` reported analytics enabled at the US host and checkout still enabled in live mode. `/privacy`, `/analytics.js`, and `/staff` returned HTTP 200. This full-suite result predates the v27 automatic-analytics change; the 20 targeted checks above validate that later change.
+
+Under the original opt-in release, live PostHog ingestion was verified with `$pageview`, `builder_started`, `part_configured`, `part_added`, `order_reviewed`, `active_time`, and `part_removed` from a consenting browser, plus a recognizable-crawler `$http_log`. The test part measured **300 × 200 mm in 12.7 mm stock** and appeared once; the unfiltered visit → add → review funnel returned **1 → 1 → 1**. The original cart was restored and the test browser was returned to **No thanks**. That stored denial remains respected in v27. No purchase was required.
+
+The project's primary home dashboard is [Nice Workshop — Visits and parts](https://us.posthog.com/project/702454/dashboard/2287933), ID **2287933**, with 11 saved charts and explanatory text. It shows reported visits, average active seconds, countries, cities, referrers, thicknesses and shapes explored versus added, configured dimensions, added dimensions, the `$pageview → part_added → order_reviewed` funnel, and recognizable-crawler request counts. The funnel ends at order review, not payment; browsing is not joined to paid orders. Dashboard wording now uses **Visits** and describes automatic collection; all 11 chart filters and layouts were preserved.
+
+Every human chart excludes verification visit `30cad796-21ad-418b-9193-70f2aa7d91fe`; the crawler chart excludes verification request `http_log_1439d6ce-ec50-47c3-96b3-e6eba860234a`. Filtered results correctly returned zero during verification. These filters exclude the deliberate test records, not all future owner activity. The owner's other browsers have **not** been excluded: use `window.NiceAnalytics.excludeOwner(true)` on the homepage separately in each browser/device. Use `false` only for deliberate testing. Staff and privacy pages do not load tracking. Stored historical denials, GPC/DNT signals, and blockers prevent those visits from appearing in behavior reports.
+
+Browser events use a random per-tab visit ID, renewed after 30 minutes without activity, and `$process_person_profile:false`. These are visits, not reliable unique/returning people. Initial default and restored configurations are not counted as fresh interest. Configurator changes settle for 700ms before recording. Part/cart amounts are CAD cents and estimates; the payment system remains authoritative. No session recordings, automatic form capture, identity linking, or third-party JavaScript is installed. Browser requests go directly to PostHog in the US, which sees the connection IP for approximate geography; the site sends only a referring hostname and fixed homepage URL. The standalone `/privacy` page describes processing and the browser preferences that are respected.
+
+Events: `$pageview`, `$pageleave`, `builder_started`, `part_configured`, `part_added`, `part_removed`, `cart_quantity_changed`, `fulfillment_changed`, `order_reviewed`, `estimate_copied`, `estimate_downloaded`, `checkout_started`, `checkout_opened`, `checkout_failed`, `active_time`. Custom events have allowlisted fields. Failures are best-effort and never block ordering. Browser data is capped at 250 events per visit; active time is emitted at most once per active minute plus a final partial interval, and hidden/idle time is excluded. Blockers, opt-outs, network failures, unloads, and these caps undercount activity. They cannot reconstruct activity from before activation. A cart without later checkout is observed drop-off, not proof of why someone left.
+
+Crawler records are separately capped at 100 successful homepage requests/hour/process and two pending sends, with a two-second timeout and no retry. Only known self-reported bot names are included; spoofed or unknown bots can be misclassified/missed. Records send a canonical bot name with no IP or URL query and disable GeoIP. Restarts reset the per-process cap. Do not interpret a flat count at the cap as complete traffic or add crawler request IDs to human visitor counts.
+
+To stop new reporting, set `ANALYTICS_ENABLED=false`; separately disabling `ANALYTICS_BOT_TRACKING_ENABLED` stops crawler reporting. Already-open tabs keep their loaded configuration until refreshed. The automatic-analytics version has no on-page preference control. Disabling collection does not delete historical PostHog data.
+
+## Homepage introduction — November 1, 2026
+
+**Current release v29:** deployment commit `2f57f857` was created on November 1, 2026 at **05:57:31 America/Toronto** and succeeded at **05:57:36**. It changes only `index.html`, `styles.css`, `server/http.js`, and the new `mighty-fine-pastries.webp`.
+
+The introduction has two complete linked callouts. The first combines the plywood-tool story and size limits and jumps to `#builder`; the second groups custom projects, materials, and the invitation to email. Its copy reads “We can help design and build those, too!” The earlier separate bottom order bar is removed. The Friends section begins with a photo tile linking to [Mighty Fine Bakehouse](https://mightyfinebakehouse.ca/). Its **800 × 800**, **161,274-byte** WebP comes from [Mighty Fine's official Facebook photo](https://www.facebook.com/photo/?fbid=494161332715149&set=a.494161299381819). The other site was consulted read-only; its app was not changed.
+
+**v29 local verification:** all **17 focused checks passed** (5 application and 12 HTTP tests), including HTTP 200 and `image/webp` for both exact photo routes. Previews at 1,280, 806, and 390 pixels had no horizontal overflow. The order callout focused the builder with 20 pixels of top clearance, and the email destination was verified. This was a focused run, separate from the earlier 131-test full suite and 20-test analytics revision.
+
+**v29 production verification:** the homepage, `styles.css?v=12`, and `mighty-fine-pastries.webp?v=1` returned HTTP 200 and were byte-identical to the local source; the image response used `image/webp`. Health and readiness returned HTTP 200 with `ok` and `ready`. The live browser showed both callouts and the Friends photo at its natural width of 800 pixels, linked to the official Mighty Fine site. Evidence was saved as `nice-workshop-callouts-live.jpg` and `nice-workshop-friends-live.jpg`.
+
+**Historical v28 introduction:** commit `dfc04c28` succeeded at **05:49:50 America/Toronto** and introduced the team photo and Friends section. The owner-approved family photo remains **1,774 × 887** (2:1), **220,562 bytes**, with white handwritten name labels. Both photos are served through an exact filename allowlist; the repository directory remains private. The v28 homepage, stylesheet, and family image were verified against local source, with the introduction and Friends section visible in the production browser.

@@ -31,9 +31,33 @@ const payload = { cuts: [{ sheetId: config.sheets[0].id, shape: 'rectangle', wid
 test('server serves storefront but never repository secrets or operations', async t => {
   const request = await fixture(t);
   assert.equal((await request('/')).status, 200);
+  for (const path of ['/nice-workshop-family.webp', '/mighty-fine-pastries.webp']) {
+    const photo = await request(path);
+    assert.equal(photo.status, 200, path);
+    assert.equal(photo.headers.get('content-type'), 'image/webp', path);
+  }
   for (const path of ['/.env', '/.git/config', '/server/db.js', '/OPERATIONS.md', '/package.json']) assert.equal((await request(path)).status, 404);
   assert.equal((await request('/readyz')).status, 503);
   assert.equal((await request('/healthz')).status, 200);
+});
+test('analytics stays off by default and only exposes the configured public ingest token', async t => {
+  const request = await fixture(t);
+  assert.deepEqual((await (await request('/api/config')).json()).analytics, {enabled:false});
+  assert.equal((await request('/analytics.js')).status, 200);
+  assert.equal((await request('/privacy')).status, 200);
+  assert.equal((await request('/server/analytics.js')).status, 404);
+  assert.doesNotMatch((await request('/')).headers.get('content-security-policy'), /posthog/);
+  const enabled = await fixture(t, {env:{ANALYTICS_ENABLED:'true',POSTHOG_PROJECT_TOKEN:'phc_testpublictoken',
+    POSTHOG_HOST:'https://eu.i.posthog.com',PUBLIC_ORIGIN:'https://www.niceworkshop.ca',
+    POSTHOG_PERSONAL_API_KEY:'never-expose-this'}});
+  const configResponse = await enabled('/api/config');
+  const body = await configResponse.json();
+  assert.deepEqual(body.analytics, {enabled:true,projectToken:'phc_testpublictoken',
+    host:'https://eu.i.posthog.com',publicOrigin:'https://www.niceworkshop.ca'});
+  assert.doesNotMatch(JSON.stringify(body), /never-expose/);
+  const csp = (await enabled('/')).headers.get('content-security-policy');
+  assert.match(csp, /connect-src 'self' https:\/\/eu\.i\.posthog\.com/);
+  assert.doesNotMatch(csp, /us\.i\.posthog\.com/);
 });
 test('quote validates request and uses trusted source pricing', async t => {
   const request = await fixture(t);

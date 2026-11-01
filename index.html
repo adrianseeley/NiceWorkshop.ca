@@ -4,11 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#3d513e">
-    <meta name="description" content="Birch plywood, cut to your size. Build a custom circle or rectangle, see your price, and put together your next project with NiceWorkshop.">
+    <meta name="description" content="Quality birch plywood, cut to your size. Price and order circles and rectangles, or ask Jacquelyn and Adrian at Nice Workshop about a custom design or build.">
     <title>Sanded Birch Plywood · NiceWorkshop.ca</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.css?v=8">
-    <script src="app.js?v=7" defer></script>
+    <link rel="stylesheet" href="styles.css?v=12">
+    <script src="analytics.js?v=2" defer></script>
+    <script src="app.js?v=8" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#builder">Skip to build your order</a>
@@ -23,6 +24,27 @@
     </header>
 
     <main class="page-shell">
+      <section class="workshop-intro" aria-labelledby="workshop-intro-title">
+        <div class="workshop-intro-copy">
+          <p class="product-kicker">Good plywood. Nice people.</p>
+          <h2 id="workshop-intro-title">We’re Nice Workshop.</h2>
+          <a class="workshop-callout workshop-order" href="#builder" aria-labelledby="workshop-order-label">
+            <p>We get so many requests for plywood circles and rectangles that we made this little tool: see the price, order your pieces, and know exactly what you’re getting.</p>
+            <p class="workshop-sizes"><strong>Quality birch plywood, precisely cut.</strong> Circles up to 1,200 mm across (just under 4 ft), and rectangles up to 1,200 × 2,400 mm (just under 4 × 8 ft).</p>
+            <span class="workshop-callout-action"><span id="workshop-order-label">Price and order yours below</span><span aria-hidden="true">↓</span></span>
+          </a>
+          <a class="workshop-callout workshop-project" href="mailto:hello@niceworkshop.ca?subject=Let%E2%80%99s%20make%20something%20nice" aria-labelledby="workshop-contact-label">
+            <p>Need a cabinet, a market display, or some very nice shelves? We can help design and build those, too!</p>
+            <p class="workshop-materials">Wood, foam, rubber, plastics, acrylic, silicone, glass, metals—even circuit boards, hardware and software. We make all sorts of things.</p>
+            <span class="workshop-callout-action"><span id="workshop-contact-label">Let’s make something nice</span><span aria-hidden="true">↗</span></span>
+            <p class="workshop-hello">Email us for a project, a little help, or just to say hello.</p>
+          </a>
+        </div>
+        <figure class="workshop-team">
+          <img src="/nice-workshop-family.webp?v=1" width="1774" height="887" fetchpriority="high" decoding="async" alt="Jacquelyn on the left and Adrian on the right, cuddling their dachshunds Ham, the brown dog, and Sandwich, the blonde dog. White handwritten arrows label each of them.">
+          <figcaption><strong>Jacquelyn</strong> is a multi-material designer. <strong>Adrian</strong> handles CAD/CAM software and machine operations. <span>Ham &amp; Sandwich keep things nice.</span></figcaption>
+        </figure>
+      </section>
       <p id="loading-status" class="loading-status" role="status">Getting the workshop ready…</p>
       <div id="fatal-error" class="error-message" role="alert" hidden></div>
       <noscript><p class="error-message">Please enable JavaScript to choose your dimensions and calculate a price.</p></noscript>
@@ -30,7 +52,7 @@
       <div id="app-content" hidden>
         <p id="checkout-mode-notice" class="checkout-mode-notice" role="status" hidden></p>
         <div class="workspace">
-          <section class="builder panel" id="builder" aria-labelledby="page-title">
+          <section class="builder panel" id="builder" aria-labelledby="page-title" tabindex="-1">
             <div class="form-intro">
               <div class="product-heading"><p class="product-kicker">Cut to size. Ready to make.</p><h1 id="page-title">Sanded Birch Plywood</h1></div>
               <p class="intro-copy">Cabinet Grade · Paintable · Stainable</p>
@@ -96,6 +118,23 @@
         </div>
       </div>
       <div id="cart-announcement" class="sr-only" role="status" aria-live="polite"></div>
+      <section class="workshop-friends" aria-labelledby="workshop-friends-title">
+        <div class="friends-heading">
+          <h2 id="workshop-friends-title">Friends of Nice Workshop.</h2>
+          <p>Good people doing very nice things.</p>
+        </div>
+        <ul class="friends-grid">
+          <li>
+            <a class="friend-tile friend-tile--photo" href="https://mightyfinebakehouse.ca/" target="_blank" rel="noopener noreferrer">
+              <img class="friend-photo" src="/mighty-fine-pastries.webp?v=1" width="800" height="800" loading="lazy" decoding="async" alt="">
+              <span class="friend-location">Arnprior, Ontario</span>
+              <span class="friend-name">Mighty Fine<br>Bakehouse</span>
+              <span class="friend-description">Bread, pastries &amp; coffee.</span>
+              <span class="friend-visit">Visit Mighty Fine <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></span>
+            </a>
+          </li>
+        </ul>
+      </section>
     </main>
     <footer class="site-footer">
       <p class="footer-brand">NICE.</p>

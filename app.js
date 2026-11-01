@@ -175,6 +175,33 @@
   const state = { shape: 'rectangle', sheetId: '', widthUnits: 100 * PER_MM,
     heightUnits: 100 * PER_MM, quantity: 1, items: [], fulfillment: 'pickup' };
 
+  // Analytics is optional and must never interrupt pricing, cart, or checkout.
+  function track(event, properties = {}) {
+    try { window.NiceAnalytics?.track(event, typeof properties === 'function' ? properties() : properties); } catch { /* Optional reporting. */ }
+  }
+  function analyticsCart() {
+    return { cart_total_cents: cartEstimate().totalCents,
+      cart_piece_count: state.items.reduce((sum, item) => sum + item.quantity, 0),
+      cart_line_count: state.items.length, fulfillment: state.fulfillment === 'dropoff' ? 'delivery' : 'pickup', currency: 'CAD' };
+  }
+  function analyticsPart(item) {
+    const valid = validItem(config, item);
+    const sheet = config.sheets.find(candidate => candidate.id === item.sheetId);
+    return { sheet_id: item.sheetId, shape: item.shape, thickness_mm: thicknessUnits(sheet) / PER_MM,
+      width_mm: item.widthUnits / PER_MM, length_mm: item.heightUnits / PER_MM,
+      quantity: item.quantity, valid, ...(valid ? { price_cents: quote(config, item).totalCents } : {}), currency: 'CAD' };
+  }
+  let configurationTimer;
+  function trackConfiguration() {
+    // Only interaction calls this: default/restored values are not new demand.
+    let enabled = false;
+    try { enabled = !!window.NiceAnalytics?.enabled(); } catch { return; }
+    if (enabled) track('builder_started');
+    clearTimeout(configurationTimer);
+    if (!enabled) return;
+    configurationTimer = setTimeout(() => track('part_configured', () => analyticsPart(currentItem())), 700);
+  }
+
   function thicknessUnits(sheet) {
     return Math.round(Number(sheet.display_thickness?.mm || sheet.nominal_thickness.mm) * PER_MM);
   }
@@ -413,6 +440,7 @@
     else state.items.push(item);
     saveCart();
     renderCart();
+    track('part_added', () => ({ ...analyticsPart(item), ...analyticsCart() }));
     announce(`${item.quantity} birch ${item.shape}${item.quantity === 1 ? '' : 's'} added to your cart.`);
     $('add-to-cart').textContent = 'Added to your cart ✓';
     clearTimeout(addToCart.timer);
@@ -478,6 +506,7 @@
         || typeof settings.termsVersion !== 'string') return;
       checkoutSettings = settings;
       checkoutConfigAvailable = true;
+      try { window.NiceAnalytics?.configure(settings.analytics); } catch { /* Optional reporting. */ }
     } catch { /* A static preview remains a working estimate and summary builder. */ }
     finally {
       clearTimeout(timeout);
@@ -538,6 +567,7 @@
       saveCheckoutAttempt();
       checkoutBusy = true;
       submitted = true;
+      track('checkout_started', analyticsCart);
       $('checkout-new-request').hidden = true;
       renderCheckoutControls();
       checkoutMessage('Preparing a secure Shopify checkout. Your cart will stay here.');
@@ -551,6 +581,7 @@
         result = await response.json();
       } finally { clearTimeout(timeout); }
       if (!response.ok) {
+        track('checkout_failed', () => ({ reason: 'rejected', ...analyticsCart() }));
         const uncertain = ['CHECKOUT_NEEDS_RECONCILIATION', 'CHECKOUT_IN_PROGRESS', 'IDEMPOTENCY_CONFLICT'].includes(result?.code)
           || (response.status >= 500 && result?.code !== 'CHECKOUT_NOT_READY');
         checkoutAttempt.status = uncertain ? 'uncertain' : 'rejected';
@@ -572,8 +603,10 @@
       checkoutAttempt.status = 'ready';
       saveCheckoutAttempt();
       checkoutMessage('Your checkout is ready. Opening Shopify…');
+      track('checkout_opened', analyticsCart);
       window.location.assign(url.toString());
     } catch {
+      track('checkout_failed', () => ({ reason: 'network_error', ...analyticsCart() }));
       if (submitted && checkoutAttempt) {
         checkoutAttempt.status = 'uncertain';
         saveCheckoutAttempt();
@@ -591,20 +624,23 @@
     $('shape').addEventListener('change', event => {
       state.shape = event.target.value;
       renderControls();
+      trackConfiguration();
     });
     $('rate-cards').addEventListener('change', event => {
       if (!event.target.matches('input[name="thickness"]')) return;
       state.sheetId = event.target.value;
       renderQuote();
+      trackConfiguration();
     });
     ['width', 'height'].forEach(field => {
-      $(`${field}-mm`).addEventListener('change', () => { readDimension(field); renderQuote(); });
+      $(`${field}-mm`).addEventListener('change', () => { readDimension(field); renderQuote(); trackConfiguration(); });
     });
-    $('quantity').addEventListener('input', event => { state.quantity = event.target.valueAsNumber; renderQuote(); });
+    $('quantity').addEventListener('input', event => { state.quantity = event.target.valueAsNumber; renderQuote(); trackConfiguration(); });
     ['minus', 'plus'].forEach(direction => $(`quantity-${direction}`).addEventListener('click', () => {
       state.quantity = Math.max(1, Math.min(999, state.quantity + (direction === 'plus' ? 1 : -1)));
       $('quantity').value = String(state.quantity);
       renderQuote();
+      trackConfiguration();
     }));
     $('add-to-cart').addEventListener('click', addToCart);
     $('cart-items').addEventListener('click', event => {
@@ -613,6 +649,7 @@
       const isRemove = button.hasAttribute('data-remove');
       const index = Number(isRemove ? button.dataset.remove : button.dataset.quantityIndex);
       if (!state.items[index]) return;
+      const previousItem = { ...state.items[index] };
       const oldQuantity = state.items[index].quantity;
       const delta = Number(button.dataset.delta);
       const removed = isRemove || (delta === -1 && oldQuantity === 1);
@@ -620,6 +657,9 @@
       else state.items = changeCartQuantity(state.items, index, delta);
       saveCart();
       renderCart();
+      track(removed ? 'part_removed' : 'cart_quantity_changed', () => ({
+        ...analyticsPart(removed ? previousItem : state.items[index]), ...analyticsCart()
+      }));
       const nextIndex = Math.min(index, state.items.length - 1);
       const selector = removed ? `[data-remove="${nextIndex}"]`
         : `[data-quantity-index="${index}"][data-delta="${state.items[index].quantity === 999 ? -1 : delta}"]`;
@@ -632,9 +672,11 @@
       state.fulfillment = input.value;
       saveCart();
       renderCart();
+      track('fulfillment_changed', analyticsCart);
     }));
     $('review-order').addEventListener('click', () => {
       if (!state.items.length) return;
+      track('order_reviewed', analyticsCart);
       $('order-summary').textContent = orderText();
       $('copy-status').textContent = '';
       $('accept-order-terms').checked = false;
@@ -652,7 +694,7 @@
       $(id).addEventListener('change', () => { $('accept-order-terms').checked = false; });
     });
     $('copy-order').addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(orderText()); $('copy-status').textContent = 'Order summary copied.'; }
+      try { await navigator.clipboard.writeText(orderText()); $('copy-status').textContent = 'Order summary copied.'; track('estimate_copied', analyticsCart); }
       catch { $('copy-status').textContent = 'Copy is unavailable here. Use Download summary instead.'; }
     });
     $('download-order').addEventListener('click', () => {
@@ -663,6 +705,7 @@
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       $('copy-status').textContent = 'Order summary downloaded.';
+      track('estimate_downloaded', analyticsCart);
     });
   }
 

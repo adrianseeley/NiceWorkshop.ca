@@ -8,6 +8,8 @@ The site is available at **https://www.niceworkshop.ca/**. The root address **ht
 
 Read [DEPLOYMENT.md](DEPLOYMENT.md) for the exact environment, configuration gates, backups, restore evidence, and local setup. Read [OPERATIONS.md](OPERATIONS.md) for refunds, changes, production, and year-end records. **Never deploy this project to or change Mighty Fine Orders.**
 
+Automatic PostHog analytics is live as of November 1, 2026, in Heroku release v27. There is no banner, footer privacy link, or preference control; previously saved denials, GPC/DNT signals, and owner exclusions remain respected. Open [Nice Workshop — Visits and parts](https://us.posthog.com/project/702454/dashboard/2287933) for visits, active time, part choices, cart activity, and limited recognizable-crawler request counts. The project uses the Free plan without a payment card, with 1,000,000 analytics events/month. Browsing is not joined to paid orders, and live checkout remains enabled. See [DEPLOYMENT.md](DEPLOYMENT.md) for verification evidence and measurement limits.
+
 ## Run locally
 
 Install Node.js 24 and project dependencies, then start the server:
@@ -30,6 +32,8 @@ A static-only preview still works with `python3 -m http.server 4173 --bind 127.0
 ## Files
 
 - `index.html`, `styles.css`, `app.js`, `favicon.svg`: storefront, exact pricing, cart, checkout handoff, and visual assets.
+- `nice-workshop-family.webp`: optimized, owner-approved team photo with white handwritten name labels.
+- `mighty-fine-pastries.webp`: optimized official Mighty Fine Bakehouse photo for its Friends tile; source recorded in `DEPLOYMENT.md`.
 - `materials.json`: trusted sheet catalogue, source costs, prices, measurements, and cut-size rules.
 - `business.json`: owner-approved public business/tax registration information. This file is intentionally served publicly; never add private account documents or credentials.
 - `server/`: HTTP application, server-side validation, Shopify client, checkout idempotency, webhook verification/processing, and database access.
@@ -44,6 +48,8 @@ A static-only preview still works with `python3 -m http.server 4173 --bind 127.0
 ## What works
 
 The visual design pairs warm ivory surfaces and deep olive controls with serif product and cart headings. The footer reads **NICE.** in heavy, upright type. The cart sits alongside the builder on wider screens and below it on mobile. A centred proportional preview appears above the configuration controls. Below it, wide screens show thickness choices alongside shape and dimension dropdowns; smaller screens stack the controls.
+
+The homepage introduction, updated in live release v29, presents Jacquelyn, Adrian, Ham, and Sandwich with a 2:1 team photo. Its first complete callout explains the plywood tool and size limits, then links to the builder; the second groups custom projects and materials into one email link. Friends of Nice Workshop starts with a photo tile for [Mighty Fine Bakehouse](https://mightyfinebakehouse.ca/). Deployment verification and photo provenance are recorded in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 Millimetres are the source of truth throughout the builder, preview, cart, and order summary. There is no unit switch or separate fraction selector. Every dimension dropdown option shows its mm value followed by the nearest 1/16-inch nominal reference in brackets, for example `44 mm (1 and 3/4 inches)`. Values below one inch retain the whole zero, such as `5.2 mm (0 and 3/16 inches)`. These rounded references never change the selected size or price. The page and exported summary explain this convention.
 
