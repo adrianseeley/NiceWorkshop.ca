@@ -7,6 +7,9 @@
     "node": "24.x"
   },
   "scripts": {
+    "build": "node scripts/build-storefront.js",
+    "prestart": "npm run build",
+    "pretest": "node scripts/build-storefront.js --check",
     "start": "node server/index.js",
     "test": "node --test app.test.js test/*.test.js",
     "db:migrate": "node scripts/migrate.js"

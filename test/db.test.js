@@ -100,7 +100,7 @@ test('PostgreSQL schema and production transitions', {
       assert.equal(calls, 1);
       const stored = (await pool.query('SELECT metadata, quoted_subtotal_cents FROM checkout_attempts WHERE id=$1', [result.checkoutAttemptId])).rows[0];
       assert.equal(stored.metadata.acceptedTermsVersion, '2026-10-31');
-      assert.equal(stored.quoted_subtotal_cents, '5080');
+      assert.equal(stored.quoted_subtotal_cents, '4935');
       await assert.rejects(pool.query('UPDATE checkout_attempts SET metadata=\'{}\'::jsonb WHERE id=$1', [result.checkoutAttemptId]), { code: '23514' });
     });
 

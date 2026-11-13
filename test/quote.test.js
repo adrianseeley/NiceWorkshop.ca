@@ -10,16 +10,39 @@ const input = cuts => ({ cuts, fulfillment: 'pickup' });
 
 test('server quote preserves documented group and cart rounding, including legacy dimensions', () => {
   const three = buildQuote(input([cut(304.8, 609.6, { quantity: 3 })]));
-  assert.equal(three.subtotalCents, 5080);
-  assert.equal(three.estimatedTaxCents, 660);
-  assert.equal(three.estimatedTotalCents, 5740);
+  assert.equal(three.subtotalCents, 4935);
+  assert.equal(three.estimatedTaxCents, 642);
+  assert.equal(three.estimatedTotalCents, 5577);
   assert.equal(three.cuts[0].widthUnits, 3048000);
   const circle = buildQuote(input([cut(127, 127, { shape: 'circle', sheetId: 'birch-25' })]));
-  assert.equal(circle.estimatedTotalCents, 392);
+  assert.equal(circle.estimatedTotalCents, 440);
   const orientations = buildQuote(input([cut(127, 25.4, { sheetId: 'birch-5-2' }), cut(25.4, 127, { sheetId: 'birch-5-2' })]));
   assert.equal(orientations.cuts.length, 2);
-  assert.equal(orientations.subtotalCents, 238);
-  assert.equal(orientations.estimatedTaxCents, 31);
+  assert.equal(orientations.subtotalCents, 228);
+  assert.equal(orientations.estimatedTaxCents, 30);
+});
+
+test('checkout snapshots using fixed labour rates still reproduce their original prices', () => {
+  const legacy = structuredClone(catalogue);
+  legacy.schema_version = 2;
+  legacy.display_rate_rounding = 'up_to_whole_cent_including_hst';
+  const sheet = legacy.sheets.find(candidate => candidate.id === 'birch-12-7');
+  delete sheet.labour_markup_basis_points;
+  delete sheet.material_id;
+  delete sheet.sheet_size_mm;
+  delete legacy.materials;
+  sheet.profit_per_square_inch_cents = 4;
+  legacy.sheets = [sheet];
+  const snapshot = buildQuote(input([cut(304.8, 609.6, { quantity: 3 })]), legacy);
+  assert.equal(snapshot.subtotalCents, 5080);
+  assert.equal(snapshot.estimatedTotalCents, 5740);
+});
+
+test('server quotes can combine stock from differently sized purchased sheets', () => {
+  const items = [cut(254, 254, { sheetId: 'trupan-1' }), cut(254, 254, { sheetId: 'fibrex-5-5' })];
+  const result = buildQuote(input(items));
+  assert.equal(result.subtotalCents, 1533);
+  assert.equal(result.estimatedTotalCents, 1732);
 });
 
 test('duplicate groups merge before rounding with a shared quantity bound', () => {
@@ -27,7 +50,9 @@ test('duplicate groups merge before rounding with a shared quantity bound', () =
   const grouped = buildQuote(input([a, { ...a, quantity: 2 }]));
   assert.deepEqual(grouped, buildQuote(input([{ ...a, quantity: 3 }])));
   assert.equal(grouped.cuts.length, 1);
-  assert.equal(grouped.estimatedTotalCents, 5740); // Three individually rounded pieces would cost 5739.
+  const withLineRounding = cut(254, 254, { sheetId: 'birch-5-2' });
+  const three = buildQuote(input([withLineRounding, { ...withLineRounding, quantity: 2 }]));
+  assert.equal(three.subtotalCents, 1150); // Three individually rounded pieces would total 1149 before tax.
   assert.equal(a.quantity, 1);
   assert.throws(() => buildQuote(input([{ ...a, quantity: 999 }, a])), QuoteValidationError);
   assert.equal(buildQuote(input([{ ...a, quantity: 999 }])).cuts[0].quantity, 999);

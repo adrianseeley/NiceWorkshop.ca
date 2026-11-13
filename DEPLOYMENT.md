@@ -1,6 +1,6 @@
 # Nice Workshop deployment and recovery
 
-Updated November 1, 2026. This document records the running environment and the checks already completed. [OPERATIONS.md](OPERATIONS.md) covers business procedures; [PRICING.md](PRICING.md) covers pricing. **Every Heroku command for this project must explicitly target `niceworkshop-ca`. Never use Mighty Fine Orders or its database.**
+Updated November 13, 2026. This document records the running environment and the checks already completed. [OPERATIONS.md](OPERATIONS.md) covers business procedures. [PRICING.md](PRICING.md) covers pricing. **Every Heroku command for this project must explicitly target `niceworkshop-ca`. Never use Mighty Fine Orders or its database.**
 
 ## Current environment
 
@@ -9,7 +9,7 @@ Updated November 1, 2026. This document records the running environment and the 
 | Public app | https://www.niceworkshop.ca/ |
 | Staff page | https://www.niceworkshop.ca/staff |
 | Heroku app | `niceworkshop-ca` |
-| Last code deployment | **v29**, succeeded November 1, 2026 at 05:57:36 America/Toronto, Heroku deployment commit `2f57f857`; two complete introduction callouts and a Mighty Fine photo tile. Automatic analytics remains enabled; native pickup was verified in v20 through fresh application order #1004 |
+| Last code deployment | **v31**, succeeded November 13, 2026, Heroku deployment commit `fb1cd02`. New birch labour markups and square-foot price display |
 | Live configuration release | **v26**, November 1, 2026; analytics and crawler reporting enabled. Public checkout remains enabled with `mode: live`; payment activation was v24 on October 31 |
 | Region / stack | `us` / `heroku-24` |
 | Runtime | Node.js 24; one always-on Basic web dyno |
@@ -242,7 +242,7 @@ To stop new reporting, set `ANALYTICS_ENABLED=false`; separately disabling `ANAL
 
 ## Homepage introduction — November 1, 2026
 
-**Current release v29:** deployment commit `2f57f857` was created on November 1, 2026 at **05:57:31 America/Toronto** and succeeded at **05:57:36**. It changes only `index.html`, `styles.css`, `server/http.js`, and the new `mighty-fine-pastries.webp`.
+**Historical release v29:** deployment commit `2f57f857` was created on November 1, 2026 at **05:57:31 America/Toronto** and succeeded at **05:57:36**. It changes only `index.html`, `styles.css`, `server/http.js`, and the new `mighty-fine-pastries.webp`.
 
 The introduction has two complete linked callouts. The first combines the plywood-tool story and size limits and jumps to `#builder`; the second groups custom projects, materials, and the invitation to email. Its copy reads “We can help design and build those, too!” The earlier separate bottom order bar is removed. The Friends section begins with a photo tile linking to [Mighty Fine Bakehouse](https://mightyfinebakehouse.ca/). Its **800 × 800**, **161,274-byte** WebP comes from [Mighty Fine's official Facebook photo](https://www.facebook.com/photo/?fbid=494161332715149&set=a.494161299381819). The other site was consulted read-only; its app was not changed.
 
@@ -251,3 +251,18 @@ The introduction has two complete linked callouts. The first combines the plywoo
 **v29 production verification:** the homepage, `styles.css?v=12`, and `mighty-fine-pastries.webp?v=1` returned HTTP 200 and were byte-identical to the local source; the image response used `image/webp`. Health and readiness returned HTTP 200 with `ok` and `ready`. The live browser showed both callouts and the Friends photo at its natural width of 800 pixels, linked to the official Mighty Fine site. Evidence was saved as `nice-workshop-callouts-live.jpg` and `nice-workshop-friends-live.jpg`.
 
 **Historical v28 introduction:** commit `dfc04c28` succeeded at **05:49:50 America/Toronto** and introduced the team photo and Friends section. The owner-approved family photo remains **1,774 × 887** (2:1), **220,562 bytes**, with white handwritten name labels. Both photos are served through an exact filename allowlist; the repository directory remains private. The v28 homepage, stylesheet, and family image were verified against local source, with the introduction and Friends section visible in the production browser.
+
+
+## Static storefront controls — November 1, 2026
+
+**Release v30** deployed commit `c4398ee1`, created at **06:17:27 America/Toronto** and succeeded at **06:17:32**. The deployment changed only `app.js`, `index.html`, `index.template.html`, `package.json`, and `scripts/build-storefront.js`. Heroku ran the new build successfully; the release command confirmed the database schema was current.
+
+`npm run build` generates `index.html` from `index.template.html` and `materials.json`, including separate width, length, and diameter menus plus material cards and maximum-size labels. Shape changes show or hide the existing controls without rebuilding their contents. Number formatting is reused, and startup synchronizes native form selections with pricing state after Firefox reloads. Edit the template rather than generated HTML. Include both the template and build script in deployment packages, and deploy catalogue changes together with regenerated HTML. `npm start` rebuilds automatically; `npm test` checks that generated HTML is current.
+
+**Verification:** all **138 tests passed**, with a disposable PostgreSQL database and zero skipped. The deployed homepage and `app.js?v=9` matched local source byte-for-byte. `/healthz`, `/readyz`, and `/staff` returned HTTP 200; the build script and template returned 404. `/api/config` confirmed checkout enabled in live mode and analytics enabled. Firefox 159 completed **100 live shape switches**, with **zero control rebuilds**, **zero page errors**, and a maximum synchronous change-handler time of **1 ms**. Minimum/maximum circle sizes, preserved rectangle length, material and quantity changes, pricing, cart, and reload selections passed. Browser verification used an isolated profile with owner analytics exclusion enabled; no analytics requests or checkout submissions were made.
+
+## Square-foot pricing — November 13, 2026
+
+Release **v31** (`fb1cd02`) applies the thickness-based labour markups to the four orderable birch sheets. All four cards display the **$1.13 per-piece charge** plus **$4.61, $8.73, $9.83, or $18.83 per square foot** including estimated HST. The release was built from v30 with the five pricing and build files. MDF and Fibrex pricing is recorded in [PRICING.md](PRICING.md#cut-pricing).
+
+All **132 release-candidate tests passed** with disposable PostgreSQL. Production HTML, `app.js?v=12`, and `materials.json` matched the release candidate. The live quote API returned **$14.20** including estimated HST for a 10″ circle in 25 mm birch. Health, readiness, and the staff page returned HTTP 200. Checkout reported live mode. Verification used the quote endpoint without creating a checkout.

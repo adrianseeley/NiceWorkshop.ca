@@ -104,6 +104,7 @@ function createApp({ pool = null, shopifyClient = null, mailSender = null, env =
   app.get('/staff', (_req, res) => res.set('Cache-Control', 'no-store').sendFile(path.join(ROOT, 'staff.html')));
   app.get('/staff.js', (_req, res) => res.sendFile(path.join(ROOT, 'staff.js')));
   app.get('/privacy', (_req, res) => res.sendFile(path.join(ROOT, 'privacy.html')));
+  app.use('/images', express.static(path.join(ROOT, 'images'), { index: false, redirect: false }));
   // Never serve the repository root: it contains secrets, source and operations.
   for (const file of ['index.html', 'app.js', 'analytics.js', 'styles.css', 'favicon.svg', 'materials.json', 'nice-workshop-family.webp', 'mighty-fine-pastries.webp']) {
     app.get(file === 'index.html' ? ['/', '/index.html'] : `/${file}`, (_req, res) => res.sendFile(path.join(ROOT, file)));

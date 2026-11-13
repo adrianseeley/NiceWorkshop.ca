@@ -2,13 +2,11 @@
 
 ## Checkout tax authority — October 31, 2026
 
-The owner approved Shopify as the authority for final checkout tax. The calculations and worked examples below remain the website’s **tax estimates**; exact before-tax cut pricing is unchanged. Shopify rounds tax per line and may use different tie rounding, so checkout tax can differ by a few cents. Each matching cut group is represented as one priced bundle with the physical piece count in its title and attributes. Never multiply a rounded per-piece price to replace the group calculation. Delivery pricing is separate and remains pending confirmation of its tax treatment and service boundary. See [Shopify tax rounding](https://help.shopify.com/en/manual/taxes/registration/manage#tax-rounding).
+The owner approved Shopify as the authority for final checkout tax. The calculations below are website estimates. Shopify rounds tax per line, so checkout tax can differ by a few cents. Matching cuts are sold as one bundle with the physical piece count on the line. [Shopify tax rounding](https://help.shopify.com/en/manual/taxes/registration/manage#tax-rounding)
 
-This is the workshop's pricing policy for cut birch plywood pieces. The customer pays **$1.00 per piece before tax**, plus the exact allocated material cost and a fixed workshop contribution for every chargeable square inch. Ontario HST is added to that subtotal. The whole-cent area rates displayed with the thickness options are rounded estimates only; they never determine the actual quote.
+The customer pays the allocated landed material cost, a thickness-based labour markup, and **$1.00 per piece before HST**. Cutting and light edge cleanup are included. The storefront shows estimated prices per square foot. Quotes use the exact cut dimensions.
 
-**Cutting, light edge cleanup, and a little love are all included in the price.** These are included services, not separate customer charges.
-
-`materials.json` is the source of truth for the four sheet products, purchase prices, shipping allowances, contribution rates, and per-piece base price. Prices are the owner's before-tax purchase prices supplied on October 28, 2026. Product names and item numbers were checked against the linked McFadden's product pages on that date.
+`materials.json` stores the purchase prices, shipping allowances, labour markups, and per-piece base price for orderable birch, MDF, and HDF. The owner supplied the birch costs on October 28, 2026 and the labour tiers on November 13, 2026.
 
 ## 1. Charge for the rectangular footprint
 
@@ -21,7 +19,7 @@ total chargeable area       = piece area × quantity
 
 For a circle, both width and length are its diameter. A 10-inch diameter circle therefore uses a **10 × 10 = 100 square inch footprint**. Do not use the circle's geometric area (πr²). The rectangle accounts for surrounding material; the pricing policy already allows for hold-down space and tool clearance. Do not add a second waste, clearance, or hold-down multiplier.
 
-The standard sheet is **1,219.2 × 2,438.4 mm**, equivalent to 48 × 96 inches or **4,608 square inches**. Millimetres are the source of truth for sheet and piece dimensions. The calculation converts exact area units to the workshop's per-square-inch contribution basis; rounded inch references never enter pricing. Sheet thickness is descriptive, not an area multiplier. Width is across the sheet and length follows the face grain. **Do not rotate pieces to make them fit.** This calculator does not promise a production nesting layout.
+The standard sheet is **1,219.2 × 2,438.4 mm**, equivalent to 48 × 96 inches or **4,608 square inches**. Stock purchased as 49 × 97 inches uses **1,244.6 × 2,463.8 mm**, or **4,753 square inches**. Millimetres are the source of truth for sheet and piece dimensions. The selected sheet determines the area and thickness tier. For plywood, width is across the grain and length follows it. **Do not rotate pieces to make them fit.** This calculator does not promise a production nesting layout.
 
 Both sides must be at least **25 mm**, and at least one side must be at least **100 mm**. This permits 100 × 25 mm and 25 × 100 mm rectangles with different grain orientations, but excludes 99 × 99 mm. Circle diameter must be at least **100 mm**. Smaller selections show a warning and cannot be added. On restoring an older cart, pieces that fail these rules are omitted with a notice.
 
@@ -37,31 +35,31 @@ First calculate the cost of one sheet delivered to the workshop, then allocate i
 
 ```text
 landed sheet cost = before-tax purchase price × 1.13 + shipping allowance
-material cost = landed sheet cost × total chargeable area / 4,608
+material cost = landed sheet cost × total chargeable area / purchased sheet area
 ```
 
-The material line includes the allocated purchase price, purchase HST, and inbound shipping. All four products currently use a **$10.00 per-sheet shipping allowance**. This is a flat amount for getting the sheet to the workshop, not delivery of a finished order to a customer. The $10 allowance is treated as the total shipping cost to recover, with no additional inbound HST applied to it.
+The material line includes the allocated purchase price, purchase HST, and inbound shipping. All current products use a **$10.00 per-sheet shipping allowance**. This is a flat amount for getting the sheet to the workshop, not delivery of a finished order to a customer. The $10 allowance is treated as the total shipping cost to recover, with no additional inbound HST applied to it.
 
 The model intentionally recovers purchase HST as part of the material line, as requested by the owner. Customer HST is a separate final calculation. No input tax credit adjustment is included in this pricing model.
 
 Keep the landed sheet cost and allocation precise until the customer material line is rounded to cents. For example, the 25 mm sheet costs $109.13 × 1.13 + $10.00 = **$133.3169** in this allocation model.
 
-## 3. Add the workshop contribution
+## 3. Add the labour markup
 
-The owner's “profit margin” is a fixed dollar contribution per square inch, not a percentage markup or percentage margin:
+Apply the markup to the unrounded allocated landed material cost. A 225% markup charges 2.25 times the material cost for labour, for a combined material and labour charge of 3.25 times the cost.
 
-| Material | Contribution per square inch | Stored cents per square inch |
+| Thickness tier | Labour markup | Stored basis points |
 | --- | ---: | ---: |
-| 4.75 mm actual; sold as 5.2 mm | $0.03 | 3 |
-| ½ inch nominal | $0.04 | 4 |
-| ¾ inch nominal | $0.06 | 6 |
-| 25 mm nominal; shop category 1 inch | $0.07 | 7 |
+| Thin (3–6.35 mm) | 225% | 22,500 |
+| About 1/2″ (12.7 mm) | 250% | 25,000 |
+| 3/4″ (19.05 mm) | 275% | 27,500 |
+| About 1″ (25–25.4 mm) | 300% | 30,000 |
 
 ```text
-workshop contribution = total chargeable area × contribution rate
+labour charge = unrounded material cost × labour markup
 ```
 
-Thicker material requires more processing: larger tools and clearance, heavier handling, more bit wear, sanding, and dust collection. The increasing contribution rate allows for these costs and the workshop's earnings. It is not a promise of net profit after all operating expenses.
+The thicker tiers account for more handling and machining, including tool wear, sanding, and dust collection.
 
 ## 4. Add $1 for every piece
 
@@ -72,14 +70,14 @@ baseCents = base_price_per_piece_cents × quantity
 base price in dollars = $1.00 × quantity
 ```
 
-Twenty pieces therefore add $20.00 before HST. This is not a one-time cart fee or a minimum price; it is added to the material and workshop contribution for every piece. Including 13% HST, the base portion is $1.13 per piece.
+Twenty pieces therefore add $20.00 before HST. This is not a one-time cart fee or a minimum price; it is added to the material and labour charge for every piece. Including 13% HST, the base portion is $1.13 per piece.
 
 ## 5. Add the final sales tax
 
-For a single material-and-size selection, add its rounded material line, rounded workshop contribution, and exact base price for its quantity. For a cart, add those subtotals for every distinct selection, then calculate HST once on the combined amount:
+For a single material-and-size selection, add its rounded material line, rounded labour charge, and exact base price for its quantity. For a cart, add those subtotals for every distinct selection, then calculate HST once on the combined amount:
 
 ```text
-selection subtotal = rounded material cost + rounded workshop contribution + base price
+selection subtotal = rounded material cost + rounded labour charge + base price
 cart subtotal      = sum of selection subtotals
 customer HST       = round to cents(cart subtotal × 0.13)
 cart total         = cart subtotal + customer HST
@@ -89,86 +87,39 @@ Cart item amounts are shown **before HST**. The cart tax line is calculated from
 
 The configured rate is **13% Ontario HST**, verified against the [Canada Revenue Agency's GST/HST rates and place-of-supply guidance](https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-place-supply.html).
 
-## Rounded rates in the thickness options are display estimates only
+## Square-foot display estimates
 
-Each thickness option repeats the **$1 per-piece base** together with its rounded area estimate, so that option contains the pricing information instead of relying on a separate base-price row. The $1 base is before HST; its tax-inclusive value is $1.13.
-
-The area estimate includes HST and is rounded upward to a whole cent per square inch:
+Each orderable thickness shows the **$1.13 per-piece charge** plus its area rate per square foot, both including estimated HST. The area rate is rounded to the nearest cent for display.
 
 ```text
-raw display rate = (landed sheet cost / 4,608 + contribution per square inch) × 1.13
-displayed rate in cents = ceiling(raw display rate in cents)
+area rate per ft² = (landed sheet cost / purchased sheet area in ft²) × (1 + labour markup) × 1.13
 ```
 
-| Thickness category | Raw area estimate including HST | Rounded display estimate including HST |
-| --- | ---: | ---: |
-| 3/16 inch / supplier 5.2 mm | 4.375096…¢/in² | **$0.05/in²** |
-| ½ inch / 12.7 mm | 6.251894…¢/in² | **$0.07/in²** |
-| ¾ inch / 19.05 mm | 8.599736…¢/in² | **$0.09/in²** |
-| 1 inch / supplier 25 mm | 11.179272…¢/in² | **$0.12/in²** |
+The quote uses precise material allocation and rounds material and labour separately. A 1 ft² cut can differ from the displayed area rate plus $1.13 by a cent.
 
-The JSON setting is `display_rate_rounding: "up_to_whole_cent_including_hst"`. This controls presentation only. **Do not multiply these rounded display rates by area to calculate a quote.** Actual prices use the precise material allocation, contribution, base charge, and final tax calculations above. Rounding the display estimate does not change what the customer pays. The complete price beneath the controls is the exact calculated total including HST.
+## Worked example for 25 mm birch
 
-## Worked example: one 10-inch circle in 25 mm birch
+The 25 mm birch sheet costs $109.13 before HST. Including purchase HST and the $10 shipping allowance, its landed cost is $133.3169. The 300% markup is applied to each cut group's exact allocated share.
 
-The owner supplied a purchase price of $109.13 for the 25 mm sheet, with $10.00 shipping and a $0.07 per-square-inch contribution. The shared base price adds $1.00 for this one piece.
-
-| Step | Calculation | Amount |
-| --- | --- | ---: |
-| Chargeable footprint | 10 × 10 × 1 | 100 in² |
-| Landed sheet cost, kept unrounded internally | $109.13 × 1.13 + $10.00 | $133.3169 |
-| Material share, kept unrounded internally | $133.3169 × 100 / 4,608 | $2.893161892… |
-| Material line | Rounded to cents | $2.89 |
-| Workshop contribution | 100 × $0.07 | $7.00 |
-| Per-piece base price | 1 × $1.00 | $1.00 |
-| Subtotal | $2.89 + $7.00 + $1.00 | $10.89 |
-| Customer HST | $10.89 × 13%, rounded to cents | $1.42 |
-| **Customer total** | **$10.89 + $1.42** | **$12.31** |
-
-The $30 material figure mentioned in the original brief was illustrative. The actual configured material share for this example is $2.89. The rounded 12¢ area display does not enter this calculation.
-
-## Worked example: 5-inch circles in 25 mm birch
-
-Each circle meets the minimum diameter and has a 5 × 5 = 25 in² chargeable footprint. The $1.00 base applies to every circle:
-
-| Step | One circle | Twenty identical circles |
-| --- | ---: | ---: |
-| Total chargeable area | 25 in² | 500 in² |
-| Material share, rounded after quantity | $0.72 | $14.47 |
-| Workshop contribution at $0.07/in² | $1.75 | $35.00 |
-| Per-piece base price | $1.00 | $20.00 |
-| Subtotal | $3.47 | $69.47 |
-| Customer HST | $0.45 | $9.03 |
-| **Customer total** | **$3.92** | **$78.50** |
-
-The base price for twenty pieces is exactly `100 × 20 = 2000` cents. The twenty-piece total is calculated from the whole selection, rather than multiplying a rounded single-piece preview by twenty.
+| Step | One 10″ circle | One 5″ circle | Twenty 5″ circles |
+| --- | ---: | ---: | ---: |
+| Chargeable footprint | 100 in² | 25 in² | 500 in² |
+| Rounded material charge | $2.89 | $0.72 | $14.47 |
+| Rounded labour charge at 300% | $8.68 | $2.17 | $43.40 |
+| Per-piece charges | $1.00 | $1.00 | $20.00 |
+| Subtotal | $12.57 | $3.89 | $77.87 |
+| Estimated HST | $1.63 | $0.51 | $10.12 |
+| **Estimated total** | **$14.20** | **$4.40** | **$87.99** |
 
 ## Money and rounding
 
-Money in `materials.json` uses **whole integer Canadian cents**. The stored value `1000` means **$10.00**:
+Money in `materials.json` uses integer Canadian cents, so `1000` is $10.00. Tax and labour markup use basis points. `1300 / 10000 = 0.13` and `22500 / 10000 = 2.25`.
 
-```text
-1 CAD = 100 cents
-1 cent = 1
-$26.70 = 2670
-$10.00 = 1000
-$1.00 = 100
-$0.03 = 3
-```
+Keep the sheet-level HST and allocated material calculation precise. Multiply by the total quantity before rounding material and labour separately to the nearest cent, with half cents rounded up. Add the $1 charge for each piece. Sum the selection subtotals, then calculate and round customer HST once on the combined subtotal.
 
-Tax is stored in basis points: `1300 / 10000 = 0.13`. Thickness measurements remain decimal numbers in their named units.
+Identical cuts merge by sheet, shape, exact width, and exact length. For example, one 12″ × 24″ rectangle in 1/2″ birch totals $18.59 with HST. Three identical pieces total $55.77, including $13.24 material, $33.11 labour, $3.00 in per-piece charges, and $6.42 HST. Swapping width and length creates a different cut group.
 
-Keep the sheet-level HST and the allocated material calculation precise until the customer line is calculated. Do not first round a per-square-inch material rate, and do not round each individual piece and then multiply by quantity. Multiply by the total quantity first, then round the entire material line and contribution line to the nearest cent, with half cents rounded up. Add the base price, already an exact whole-cent amount (`100 × quantity`). Sum these amounts across all selections into the cart subtotal; calculate and round customer HST once on that combined subtotal; add it to the subtotal. Use integer or rational arithmetic for the pricing operations to avoid binary floating-point rounding errors.
-
-The upward whole-cent rounding used for the thickness display is separate from these billing rules and is never a billing input.
-
-Adding another piece with the same material, shape, width, and length merges it into the existing selection and increases its quantity. Its material and contribution are recalculated for the combined quantity before rounding, and its base price increases by $1.00 for every added piece. Different shapes, materials, or stored dimensions remain separate selections. Any newly added piece merges only with a selection having the same exact physical dimensions. Cart-row minus and plus buttons adjust quantity from 1 through 999; decreasing one to zero removes the row. Each change recalculates and persists the cart, and the Remove link remains available. Swapping width and length is a different selection because face-grain direction is fixed.
-
-Because rounding happens at the selection and cart levels, a single-piece preview multiplied by quantity, or the sum of standalone tax-inclusive previews, may differ from the final cart by a few cents. The calculation above is the website estimate; Shopify is authoritative for final tax. For example, a 5 × 1 inch rectangle and a 1 × 5 inch rectangle in the thinnest birch remain separate selections because their grain orientations differ. Each has a $1.19 subtotal, including its $1.00 base price. Purchased together, their $2.38 combined subtotal incurs $0.31 HST for a $2.69 total. Taxing them separately would round each selection's HST to $0.15 and incorrectly produce $2.68 for the combined cart.
-
-For a quantity example, one 12 × 24 inch rectangle in ½ inch birch totals $19.13. Three identical pieces together total $57.40: $13.24 material plus $34.56 contribution plus $3.00 base price, then $6.60 HST. The combined material amount is rounded after multiplication by three.
-
-For example, purchase HST on $109.13 is retained as $14.1869 in this allocation model, even though a supplier invoice may round its tax line to cents. This is a deliberate, consistent estimator convention.
+Existing checkout snapshots with fixed per-square-inch rates reproduce the prices that were saved when those checkouts were created.
 
 ## Sheet catalogue and measurements
 
@@ -200,9 +151,41 @@ The display categories are:
 
 The interface shows the mm category first, then its nearest 1/16-inch nominal reference in brackets (with a whole zero for sub-inch fractions). The table above abbreviates those references. The page explains the reference-only convention; actual sheet thickness is still usually less than nominal. The paired labels identify the same stock product; they are not statements of mathematical equality or measured thickness. In particular, 3/16 inch equals 4.7625 mm, not 5.2 mm, and 1 inch equals 25.4 mm, not 25 mm. The supplier's 5.2 mm and 25 mm numeric nominal values remain unchanged. The known 4.75 mm actual thickness of the thinnest sheet also remains separate from its labels.
 
-Exact nominal conversions use **1 inch = 25.4 mm**: ½ inch is 12.7 mm; ¾ inch is 19.05 mm; 25 mm is approximately 0.984252 inch. The owner's earlier “12 mm” and “19 mm” labels were rounded categories, not measured thicknesses. None of the thickness labels or measurements multiplies the price; selecting the product determines its configured purchase price and contribution rate.
+Exact nominal conversions use **1 inch = 25.4 mm**. The 1/2″ panel is nominally 12.7 mm, the 3/4″ panel is nominally 19.05 mm, and 25 mm is about 0.984252 inches. The selected sheet determines the purchase price and labour markup.
 
 Unknown actual measurements are JSON `null`, never zero and never copied from the nominal thickness. When a sheet arrives, fill both `actual_thickness.mm` and `actual_thickness.inches`, using `inches = mm / 25.4`. Repeating conversions can be recorded to 10 decimal places. Updating thickness measurements alone must not change a price.
+
+### MDF and HDF stock
+
+McFadden’s Ottawa account prices checked on November 13, 2026. Prices are CAD per full sheet before HST. The dimensions below are supplier specifications. Actual thicknesses await measurement.
+
+| Stock | Purchased sheet | McFadden’s SKU | Before-tax price |
+| --- | --- | --- | ---: |
+| [1/4″ (6.35 mm) Arauco Standard MDF](https://mcfaddens.com/Arauco-1-4-Thick-Standard-49-x-97-FSC-MDF-Panel.html) | 49″ × 97″ | `MDFS.04G2S.32` | $26.67 |
+| [1/2″ (12.7 mm) Arauco Trupan Standard MDF](https://mcfaddens.com/Arauco-Trupan-1-2-Thick-Standard-49-x-97-FSC-MDF-Panel-with-Raw-Finish.html) | 49″ × 97″ | `MDFS.08G2S.32FSC` | $45.90 |
+| [3/4″ (19.05 mm) Arauco Trupan Standard MDF](https://mcfaddens.com/Arauco-Trupan-3-4-Thick-Standard-49-x-97-FSC-MDF-Panel-with-Raw-Finish.html) | 49″ × 97″ | `MDFS.12G2S.FSC32` | $63.17 |
+| [1″ (25.4 mm) Arauco Trupan Standard MDF](https://mcfaddens.com/Arauco-Trupan-1-Thick-Standard-49-x-97-FSC-MDF-Panel-with-Raw-Finish.html) | 49″ × 97″ | `MDFS.16G2S.32F` | $95.78 |
+| [3 mm Arauco Raw Fibrex HDF](https://mcfaddens.com/3mm-Raw-Fibrex-HDF-49-x-97-Panel.html) | 49″ × 97″ | `HD.FX02STD.32A` | $16.35 |
+| [5.5 mm Arauco Raw Fibrex HDF](https://mcfaddens.com/5.5mm-Raw-Fibrex-HDF-48-x-96-Panel.html) | 48″ × 96″ | `HD.FX04STD.32` | $33.52 |
+
+### Cut pricing
+
+Square-foot rates include estimated HST and cover material and labour. The 10″ × 10″ examples also include the $1 per-piece charge and its HST. The full purchased area is used for the calculation, with 4,753 in² for 49″ × 97″ sheets and 4,608 in² for 48″ × 96″ sheets.
+
+| Material | Labour markup | Area rate before HST | Area rate incl. HST | 10″ × 10″ incl. HST |
+| --- | ---: | ---: | ---: | ---: |
+| 5.2 mm birch | 225% | $4.08/ft² | $4.61/ft² | $4.33 |
+| 1/2″ birch | 250% | $7.72/ft² | $8.73/ft² | $7.19 |
+| 3/4″ birch | 275% | $8.70/ft² | $9.83/ft² | $7.96 |
+| 25 mm birch | 300% | $16.66/ft² | $18.83/ft² | $14.20 |
+| 1/4″ Arauco MDF | 225% | $3.95/ft² | $4.47/ft² | $4.23 |
+| 1/2″ Arauco MDF | 250% | $6.56/ft² | $7.41/ft² | $6.27 |
+| 3/4″ Trupan MDF | 275% | $9.25/ft² | $10.45/ft² | $8.38 |
+| 1″ Trupan MDF | 300% | $14.33/ft² | $16.19/ft² | $12.37 |
+| 3 mm Raw Fibrex HDF | 225% | $2.80/ft² | $3.17/ft² | $3.33 |
+| 5.5 mm Raw Fibrex HDF | 225% | $4.86/ft² | $5.49/ft² | $4.95 |
+
+At 275%, 3/4″ Trupan costs $0.62 more per square foot than 3/4″ birch because of its higher landed material cost per square foot.
 
 ## Updating the model
 
@@ -210,8 +193,9 @@ Edit the relevant sheet record in `materials.json`:
 
 - `price_cents`: the owner's before-tax purchase price for one full sheet.
 - `shipping_cents`: the shipping allowance allocated to that sheet; currently `1000` for every sheet.
-- `profit_per_square_inch_cents`: the workshop contribution for one chargeable square inch.
+- `labour_markup_basis_points`: the percentage of exact allocated landed material cost charged for labour.
+- `sheet_size_mm`: optional purchased width and height for this sheet. If omitted, the calculation uses the catalogue’s standard sheet size. Both dimensions must cover the common cut limits.
 - `actual_thickness`: the measured thickness, filled in when known.
 - `display_thickness`: the nominal mm shop label used to derive the bracketed inch reference; this value must not replace the numeric supplier nominal or measured fields.
 
-`base_price_per_piece_cents`, `display_rate_rounding`, `tax_rate_basis_points`, `sheet_size_mm`, `cut_size_limits_mm`, and `piece_size_rules` are shared settings at the root of `materials.json`. The base price is currently `100`, or $1.00 before tax per piece. `display_rate_rounding` is `"up_to_whole_cent_including_hst"` and affects only the displayed area estimates. If the pricing, inbound shipping, or purchase-HST recovery policy changes, update the JavaScript and this document together. Prices, shipping, contribution rate, per-piece base price, tax rate, part dimensions, quantity, and sheet area drive billing; display rounding, the descriptive grade, name, link, and thickness fields do not. Size rules control eligibility and defaults without altering rates.
+`base_price_per_piece_cents`, `display_rate_rounding`, `tax_rate_basis_points`, `sheet_size_mm`, `cut_size_limits_mm`, and `piece_size_rules` are shared settings at the root of `materials.json`. The base price is currently `100`, or $1.00 before tax per piece. `display_rate_rounding` is `"nearest_cent_per_square_foot_including_hst"` and governs the displayed estimates. If the pricing, inbound shipping, or purchase-HST recovery policy changes, update the JavaScript and this document together. Prices, shipping, labour markup, per-piece base price, tax rate, part dimensions, quantity, and sheet area drive billing; display rounding, the descriptive grade, name, link, and thickness fields do not. Size rules control eligibility and defaults without altering rates.

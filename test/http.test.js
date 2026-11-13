@@ -31,12 +31,21 @@ const payload = { cuts: [{ sheetId: config.sheets[0].id, shape: 'rectangle', wid
 test('server serves storefront but never repository secrets or operations', async t => {
   const request = await fixture(t);
   assert.equal((await request('/')).status, 200);
-  for (const path of ['/nice-workshop-family.webp', '/mighty-fine-pastries.webp']) {
+  const materialPhotos = [
+    'birch', 'birch-5-2', 'birch-12-7', 'birch-19-05', 'birch-25',
+    'arauco', 'arauco-1-4', 'arauco-1-2', 'trupan-3-4', 'trupan-1',
+    'fibrex', 'fibrex-3', 'fibrex-5-5',
+  ].map(material => `/images/materials/${material}.webp`);
+  for (const path of ['/nice-workshop-family.webp', '/mighty-fine-pastries.webp',
+    '/images/cut-shapes-showcase.webp', '/images/birch-n-sheet.webp', ...materialPhotos]) {
     const photo = await request(path);
     assert.equal(photo.status, 200, path);
     assert.equal(photo.headers.get('content-type'), 'image/webp', path);
   }
-  for (const path of ['/.env', '/.git/config', '/server/db.js', '/OPERATIONS.md', '/package.json']) assert.equal((await request(path)).status, 404);
+  for (const path of ['/images', '/images/materials', '/images/materials/missing.webp']) {
+    assert.equal((await request(path)).status, 404, path);
+  }
+  for (const path of ['/.env', '/.git/config', '/server/db.js', '/OPERATIONS.md', '/package.json', '/index.template.html', '/scripts/build-storefront.js']) assert.equal((await request(path)).status, 404);
   assert.equal((await request('/readyz')).status, 503);
   assert.equal((await request('/healthz')).status, 200);
 });

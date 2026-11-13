@@ -64,13 +64,13 @@ test('checkout persists exact immutable request metadata before making one draft
   const stored = pool.rows.get(request.idempotencyKey);
   assert.equal(result.state, 'ready');
   assert.equal(result.reused, false);
-  assert.equal(stored.quoted_subtotal_cents, 5080);
+  assert.equal(stored.quoted_subtotal_cents, 4935);
   assert.deepEqual(stored.cuts, [cut]);
   assert.equal(stored.metadata.acceptedTermsVersion, request.termsVersion);
   assert.ok(Number.isFinite(Date.parse(stored.metadata.acceptedAt)));
   assert.equal(stored.metadata.shippingPriceCents, 0);
   assert.deepEqual(stored.metadata.fulfillmentAddress, address);
-  assert.equal(stored.metadata.draftInput.lineItems[0].originalUnitPriceWithCurrency.amount, '50.80');
+  assert.equal(stored.metadata.draftInput.lineItems[0].originalUnitPriceWithCurrency.amount, '49.35');
   assert.equal(calls[0].variables.input.customAttributes.find(item => item.key === 'nice_workshop_reference').value, stored.id);
   const second = await createCheckout(pool, client, request);
   assert.deepEqual(second, { ...result, reused: true });

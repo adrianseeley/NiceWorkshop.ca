@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en-CA">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#3d513e">
+    <meta name="description" content="Shop birch plywood, MDF and HDF cut to size in Renfrew County. Order circles and rectangles for pickup near the Horton Community Centre or local delivery in select towns.">
+    <title>Sheet Goods Cut to Size in Renfrew County · Nice Workshop</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css?v=23">
+    <script src="analytics.js?v=2" defer></script>
+    <script src="app.js?v=15" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#builder">Skip to build your order</a>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="./" aria-label="NiceWorkshop.ca home">
+          <img class="brand-mark" src="/images/birch-n-sheet.webp" width="76" height="38" alt="">
+          <span>NiceWorkshop<span class="brand-domain">.ca</span></span>
+        </a>
+        <div class="header-right"><div class="header-info"><p class="lead-time"><span class="status-dot" aria-hidden="true"></span><span>Our current lead time is <strong>14 days</strong>.</span></p><p class="header-help"><span class="help-prefix">Need help? </span><a href="mailto:hello@niceworkshop.ca">hello@niceworkshop.ca</a></p></div><a class="cart-link" href="#cart" aria-label="View your cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 3h3l2.2 12.5h12L22 7H6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg><span id="cart-count" class="cart-count">0</span></a></div>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="store-hero" aria-labelledby="page-title">
+        <div class="store-hero-copy">
+          <p class="store-location">Exclusively serving Renfrew County</p>
+          <h1 id="page-title">Sheet goods,<br>cut to size.</h1>
+          <p>We stock high-quality sheet goods and cut them to your exact dimensions using an industrial CNC router. No minimums, no setup costs, always nice.</p>
+          <a href="#builder" class="button store-hero-button">Show Now <span aria-hidden="true">↓</span></a>
+        </div>
+        <img class="store-hero-photo" src="/images/cut-shapes-showcase.webp" width="1536" height="1024" fetchpriority="high" alt="Birch plywood, MDF, and Fibrex HDF cut into squares, rectangles, circles, stars, and rings in a range of sizes and thicknesses.">
+      </section>
+      <p id="loading-status" class="loading-status" role="status">Getting the workshop ready…</p>
+      <div id="fatal-error" class="error-message" role="alert" hidden></div>
+      <noscript><p class="error-message">Please enable JavaScript to choose your dimensions and calculate a price.</p></noscript>
+
+      <div id="app-content" hidden>
+        <p id="checkout-mode-notice" class="checkout-mode-notice" role="status" hidden></p>
+        <div class="workspace">
+          <section class="builder panel" id="builder" aria-labelledby="builder-title" tabindex="-1">
+            <div class="form-intro">
+              <h2 id="builder-title">Design your cut</h2>
+            </div>
+            <div class="configuration">
+              <section class="configuration-step wood-step" aria-labelledby="wood-heading">
+                <h3 class="step-heading" id="wood-heading">Choose your wood</h3>
+                <div id="wood-cards" class="wood-cards" role="radiogroup" aria-labelledby="wood-heading">{{WOOD_CARDS}}</div>
+              </section>
+
+              <section class="configuration-step thickness-step" aria-labelledby="thickness-heading">
+                <h3 class="step-heading" id="thickness-heading">Choose your thickness</h3>
+                <div id="rate-cards" class="rate-cards" role="radiogroup" aria-labelledby="thickness-heading">{{MATERIAL_CARDS}}</div>
+                <p id="material-status" class="material-status" role="status" hidden></p>
+              </section>
+
+              <section class="configuration-step shape-step" aria-labelledby="shape-heading">
+                <h3 class="step-heading" id="shape-heading">Choose your shape</h3>
+                <div id="shape" class="shape-options" role="radiogroup" aria-labelledby="shape-heading">
+                  <label class="shape-option"><input type="radio" name="shape" value="rectangle" checked><svg class="shape-icon" viewBox="0 0 32 24" aria-hidden="true"><rect x="3" y="4" width="26" height="16" rx="1"/></svg><span>Rectangle</span></label>
+                  <label class="shape-option"><input type="radio" name="shape" value="circle"><svg class="shape-icon" viewBox="0 0 32 24" aria-hidden="true"><circle cx="16" cy="12" r="9"/></svg><span>Circle</span></label>
+                  <label class="shape-option"><input type="radio" name="shape" value="other"><svg class="shape-icon" viewBox="0 0 32 24" aria-hidden="true"><path fill-rule="evenodd" d="M3 13c0-4 3-8 7-8 2.6 0 3.8 1.6 6 1.1 2.3-.5 3.6-3.6 6.8-3.2 3.9.5 6.2 4.5 5.6 8.4-.5 3.4-3.6 4.2-5.6 5.4-2.5 1.5-3.5 4.6-7 4.6-2.6 0-4.2-2.1-6.5-2.5C6.4 18.3 3 17 3 13Zm8.2-.5c0 1.6 1.5 2.7 3.3 2.5 1.7-.2 2.8-1.4 2.5-2.9-.3-1.4-1.7-2.1-3.2-2-1.5.1-2.6 1.1-2.6 2.4Z"/></svg><span>Other</span></label>
+                </div>
+                <p id="custom-shape-note" class="custom-shape-note" hidden>We would love to help you with other shapes, but the form is only so mighty. <a href="mailto:hello@niceworkshop.ca?subject=Custom%20shape%20request">Send us an email</a> with any details and we can help get it all sorted out.</p>
+              </section>
+
+              <div id="cut-options">
+                <section class="configuration-step size-step" aria-labelledby="size-heading">
+                  <h3 class="step-heading" id="size-heading">Choose your size</h3>
+                  <p class="measurement-note" id="measurement-note">Cuts are sized in millimetres. Inch equivalents are rounded to the nearest 1/16 inch.</p>
+                  <div class="size-layout">
+                    <div>
+                      <div class="dimension-grid">
+                        <div class="form-field" id="width-field">
+                          <label for="width-mm" id="width-label">Width</label>
+                          <select id="width-mm" aria-describedby="width-help measurement-note size-error">{{WIDTH_OPTIONS}}</select>
+                          <p class="field-help" id="width-help">{{WIDTH_HELP}}</p>
+                        </div>
+                        <div class="form-field" id="height-field">
+                          <label for="height-mm" id="height-label">Length</label>
+                          <select id="height-mm" aria-describedby="height-help measurement-note size-error">{{HEIGHT_OPTIONS}}</select>
+                          <p class="field-help" id="height-help">{{HEIGHT_HELP}}</p>
+                        </div>
+                        <div class="form-field" id="diameter-field" hidden>
+                          <label for="diameter-mm">Diameter</label>
+                          <select id="diameter-mm" aria-describedby="diameter-help measurement-note size-error">{{DIAMETER_OPTIONS}}</select>
+                          <p class="field-help" id="diameter-help">{{DIAMETER_HELP}}</p>
+                        </div>
+                      </div>
+                      <p id="size-error" class="error-message" role="alert" hidden></p>
+                    </div>
+                    <figure class="piece-visual">
+                      <svg id="piece-diagram" class="piece-illustration" viewBox="0 -16 420 316" role="img" aria-labelledby="piece-diagram-title">
+                        <title id="piece-diagram-title">Top view of your piece with dimension guides</title>
+                        <g id="diagram-content"></g>
+                      </svg>
+                    </figure>
+                  </div>
+                </section>
+
+                <div class="purchase-row">
+                  <div class="quantity-row"><label for="quantity">Quantity</label><div class="quantity-control"><button type="button" id="quantity-minus" aria-label="Decrease quantity">−</button><input id="quantity" type="number" inputmode="numeric" min="1" max="999" step="1" value="1" aria-label="Quantity"><button type="button" id="quantity-plus" aria-label="Increase quantity">+</button></div></div>
+                  <div class="piece-price-block" aria-live="polite" aria-atomic="true"><div class="price-line"><strong id="piece-price">—</strong><span>CAD</span></div><p id="piece-price-note">per piece · estimated HST included</p><p id="line-price" class="line-price" hidden></p></div>
+                </div>
+                <button type="button" id="add-to-cart" class="button button-primary">Add to cart <span aria-hidden="true">+</span></button>
+                <p class="add-note">Cutting, light edge cleanup, and a little love are all included.</p>
+              </div>
+            </div>
+          </section>
+
+          <aside class="cart panel" id="cart" aria-labelledby="cart-heading">
+            <div class="section-heading"><h2 id="cart-heading">Your cart</h2><svg class="cart-heading-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M5 7h14l1 14H4L5 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></div>
+            <div id="empty-cart" class="empty-cart"><svg viewBox="0 0 80 64" aria-hidden="true"><rect x="14" y="15" width="42" height="35" rx="2" transform="rotate(-12 35 32)"/><circle cx="52" cy="37" r="18"/></svg><p>Your cart is empty</p><span>Choose a piece and add it to your cart.</span></div>
+            <p id="cart-restore-note" class="error-message" role="status" hidden></p>
+            <div id="cart-items" class="cart-items"></div>
+            <div id="cart-summary" class="cart-summary" hidden><dl><div><dt>Cut subtotal</dt><dd id="cart-subtotal">—</dd></div><div id="cart-delivery-row" hidden><dt>Local delivery <span>(before HST)</span></dt><dd id="cart-delivery">—</dd></div><div><dt>Estimated HST <span id="cart-tax-rate">(13%)</span></dt><dd id="cart-tax">—</dd></div><div class="cart-total-row"><dt>Estimated total</dt><dd><span id="cart-total">—</span> <small>CAD</small></dd></div></dl><p class="field-help">Tax is an estimate. Shopify calculates final tax at checkout.</p><p id="cart-area" class="cart-area"></p></div>
+            <fieldset class="fulfillment"><legend>How will you get it?</legend><div class="fulfillment-options"><label class="radio-option"><input type="radio" name="fulfillment" value="pickup" checked><span><strong>Free driveway pickup</strong><small>1019 Castleford Road, Renfrew</small><small>K7V 3Z8</small></span></label><label class="radio-option"><input type="radio" name="fulfillment" value="dropoff"><span><strong>Local Drop Off</strong><small>Arnprior, Braeside, McNab, or Renfrew</small><small id="delivery-estimate-note">$5.00 including estimated HST</small></span></label></div><p id="fulfillment-note" class="field-help">At this time we are a local only provider and do not offer shipping of any kind.</p></fieldset>
+            <button type="button" id="review-order" class="button button-primary" disabled>Review your order <span aria-hidden="true">→</span></button>
+          </aside>
+        </div>
+      </div>
+      <div id="cart-announcement" class="sr-only" role="status" aria-live="polite"></div>
+      <section class="workshop-intro" aria-labelledby="workshop-intro-title">
+        <div class="workshop-intro-copy">
+          <h2 id="workshop-intro-title">We’re Nice Workshop.</h2>
+          <a class="workshop-callout workshop-project" href="mailto:hello@niceworkshop.ca?subject=Let%E2%80%99s%20make%20something%20nice" aria-labelledby="workshop-contact-label">
+            <p>Need a cabinet, a market display, or some very nice shelves? We can help design and build those, too!</p>
+            <p class="workshop-materials">Wood, foam, rubber, plastics, acrylic, silicone, glass, metals—even circuit boards, hardware and software. We make all sorts of things.</p>
+            <span class="workshop-callout-action"><span id="workshop-contact-label">Let’s make something nice</span><span aria-hidden="true">↗</span></span>
+            <p class="workshop-hello">Email us for a project, a little help, or just to say hello.</p>
+          </a>
+        </div>
+        <figure class="workshop-team">
+          <img src="/nice-workshop-family.webp?v=1" width="1774" height="887" loading="lazy" decoding="async" alt="Jacquelyn on the left and Adrian on the right, cuddling their dachshunds Ham, the brown dog, and Sandwich, the blonde dog. White handwritten arrows label each of them.">
+          <figcaption><strong>Jacquelyn</strong> is a multi-material designer. <strong>Adrian</strong> handles CAD/CAM software and machine operations. <span>Ham &amp; Sandwich keep things nice.</span></figcaption>
+        </figure>
+      </section>
+      <section class="workshop-friends" aria-labelledby="workshop-friends-title">
+        <div class="friends-heading">
+          <h2 id="workshop-friends-title">Friends of Nice Workshop.</h2>
+          <p>Good people doing very nice things.</p>
+        </div>
+        <ul class="friends-grid">
+          <li>
+            <a class="friend-tile friend-tile--photo" href="https://mightyfinebakehouse.ca/" target="_blank" rel="noopener noreferrer">
+              <img class="friend-photo" src="/mighty-fine-pastries.webp?v=1" width="800" height="800" loading="lazy" decoding="async" alt="">
+              <span class="friend-location">Arnprior, Ontario</span>
+              <span class="friend-name">Mighty Fine<br>Bakehouse</span>
+              <span class="friend-description">Bread, pastries &amp; coffee.</span>
+              <span class="friend-visit">Visit Mighty Fine <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></span>
+            </a>
+          </li>
+        </ul>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <p class="footer-brand">NICE.</p>
+      <p>Questions, comments, or just want to say hi?<br><a href="mailto:hello@niceworkshop.ca">hello@niceworkshop.ca</a></p>
+    </footer>
+
+    <dialog id="order-dialog" aria-labelledby="order-dialog-heading">
+      <div class="dialog-heading"><div><p class="eyebrow">Every piece, checked</p><h2 id="order-dialog-heading">Review your order.</h2></div><button type="button" id="close-order" class="icon-button" aria-label="Close order summary">×</button></div>
+      <p id="order-dialog-intro" class="dialog-intro">Save a copy of your estimate. Checkout is not available in this preview.</p>
+      <p id="dialog-test-notice" class="checkout-mode-notice" hidden>Test checkout only. Use test payment details; do not enter a real card.</p>
+      <pre id="order-summary"></pre>
+      <form id="checkout-form" hidden>
+        <p id="pickup-checkout-note" class="field-help">We’ll email you when your order is ready for pickup. Please do not come before you receive that email.</p>
+        <fieldset id="delivery-address-fields" class="delivery-address-fields" hidden disabled>
+          <legend>Your local delivery address</legend>
+          <div class="form-field"><label for="delivery-address1">Street address</label><input id="delivery-address1" name="address1" autocomplete="shipping address-line1" maxlength="150" required></div>
+          <div class="form-field"><label for="delivery-address2">Apartment or unit <span class="optional-label">(optional)</span></label><input id="delivery-address2" name="address2" autocomplete="shipping address-line2" maxlength="150"></div>
+          <div class="delivery-address-row">
+            <div class="form-field"><label for="delivery-city">Town</label><select id="delivery-city" name="city" autocomplete="shipping address-level2" required><option value="">Choose your town</option><option>Arnprior</option><option>Braeside</option><option>McNab</option><option>Renfrew</option></select></div>
+            <div class="form-field"><label for="delivery-postal">Postal code</label><input id="delivery-postal" name="postal" autocomplete="shipping postal-code" maxlength="7" placeholder="K7V 3Z8" pattern="[A-Za-z][0-9][A-Za-z] ?[0-9][A-Za-z][0-9]" required></div>
+          </div>
+          <p class="field-help">Ontario, Canada. Delivery is available only in the four towns listed above.</p>
+        </fieldset>
+        <label class="checkout-terms"><input id="accept-order-terms" type="checkbox" required><span>I have checked my sizes, quantities, and pickup or delivery details. I understand that paid orders enter production and changes or change-of-mind cancellations are unavailable after payment.</span></label>
+        <p class="field-help">Current lead time: 14 days. Shopify shows the final tax and total before you pay.</p>
+        <button id="checkout-submit" type="submit" class="button button-primary">Continue to Shopify checkout <span aria-hidden="true">→</span></button>
+        <button id="checkout-new-request" type="button" class="button button-secondary" hidden>Create checkout for these updated details</button>
+      </form>
+      <p id="checkout-status" class="checkout-status" role="status" aria-live="polite" hidden></p>
+      <div class="dialog-actions"><button type="button" id="copy-order" class="button button-secondary">Copy summary</button><button type="button" id="download-order" class="button button-secondary">Download summary</button></div>
+      <p id="copy-status" class="field-help" role="status"></p>
+    </dialog>
+  </body>
+</html>

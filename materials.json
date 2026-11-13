@@ -1,9 +1,9 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "currency": "CAD",
   "money_scale": 100,
   "base_price_per_piece_cents": 100,
-  "display_rate_rounding": "up_to_whole_cent_including_hst",
+  "display_rate_rounding": "nearest_cent_per_square_foot_including_hst",
   "tax_rate_basis_points": 1300,
   "piece_size_rules": {
     "minimum_side_mm": 25,
@@ -12,9 +12,9 @@
   },
   "metadata": {
     "recorded_on": "2026-10-28",
-    "price_source": "Workshop owner: before-tax sheet purchase prices supplied on 2026-10-28. These are the calculation inputs, not scraped retail prices.",
+    "price_source": "Workshop owner: before-tax birch sheet purchase prices supplied on 2026-10-28 and McFadden's Ottawa account prices for MDF and HDF recorded on 2026-11-13. These are the calculation inputs, not public retail prices.",
     "supplier": "McFadden's",
-    "supplier_names_verified_on": "2026-10-28",
+    "supplier_names_verified_on": "2026-11-13",
     "money_unit": "One cent is 0.01 CAD. All fields ending in _cents are whole integers.",
     "thickness_unit": "Both inches and millimetres are recorded; 1 inch = 25.4 mm. Repeating conversions are stored to 10 decimal places.",
     "actual_thickness_unknown": null,
@@ -25,9 +25,37 @@
     "pricing_policy": "PRICING.md",
     "display_thickness_policy": "Millimetres are the source of truth. Bracketed inch references are derived from millimetres and rounded to the nearest 1/16 inch; they are nominal references, not exact conversions or measured thicknesses."
   },
+  "materials": [
+    {
+      "id": "birch",
+      "name": "Sanded Birch Plywood",
+      "finish": "Unfinished",
+      "short_name": "birch",
+      "description": "Cabinet grade · Paintable · Stainable",
+      "image": "/images/materials/birch.webp"
+    },
+    {
+      "id": "mdf",
+      "name": "MDF",
+      "short_name": "MDF",
+      "description": "Medium-density fibreboard",
+      "image": "/images/materials/arauco.webp",
+      "has_grain": false
+    },
+    {
+      "id": "fibrex",
+      "name": "Fibrex HDF",
+      "short_name": "HDF",
+      "description": "Thin high-density fibreboard",
+      "image": "/images/materials/fibrex.webp",
+      "has_grain": false
+    }
+  ],
   "sheets": [
     {
       "id": "birch-5-2",
+      "material_id": "birch",
+      "image": "/images/materials/birch-5-2.webp",
       "label": "4.75 mm birch",
       "supplier_name": "5.2mm CW/4 Grade Rotary Cut Birch 48\" x 96\" Veneer Core Plywood Panel",
       "supplier_item_number": "BH.RY04.VC32",
@@ -42,13 +70,15 @@
       },
       "price_cents": 2670,
       "shipping_cents": 1000,
-      "profit_per_square_inch_cents": 3,
+      "labour_markup_basis_points": 22500,
       "display_thickness": {
         "mm": "5.2"
       }
     },
     {
       "id": "birch-12-7",
+      "material_id": "birch",
+      "image": "/images/materials/birch-12-7.webp",
       "label": "½ inch birch",
       "supplier_name": "1/2\" Thick C/2 Grade Rotary Cut Birch 48\" x 96\" Veneer Core Plywood Panel",
       "supplier_item_number": "BH.RY08C2W.VC32I",
@@ -63,13 +93,15 @@
       },
       "price_cents": 5365,
       "shipping_cents": 1000,
-      "profit_per_square_inch_cents": 4,
+      "labour_markup_basis_points": 25000,
       "display_thickness": {
         "mm": "12.7"
       }
     },
     {
       "id": "birch-19-05",
+      "material_id": "birch",
+      "image": "/images/materials/birch-19-05.webp",
       "label": "¾ inch birch",
       "supplier_name": "3/4\" Thick CNAT/2 Grade Rotary Cut Birch 48\" x 96\" Veneer Core Plywood Panel",
       "supplier_item_number": "BH.RY12CNAT2.VC32X",
@@ -84,13 +116,15 @@
       },
       "price_cents": 5682,
       "shipping_cents": 1000,
-      "profit_per_square_inch_cents": 6,
+      "labour_markup_basis_points": 27500,
       "display_thickness": {
         "mm": "19.05"
       }
     },
     {
       "id": "birch-25",
+      "material_id": "birch",
+      "image": "/images/materials/birch-25.webp",
       "label": "25 mm birch",
       "supplier_name": "25mm Grade C/2 Rotary Cut 48\" x 96\" Veneer Core Plywood Panel",
       "supplier_item_number": "BH.RY16C2W.VC32I",
@@ -105,10 +139,106 @@
       },
       "price_cents": 10913,
       "shipping_cents": 1000,
-      "profit_per_square_inch_cents": 7,
+      "labour_markup_basis_points": 30000,
       "display_thickness": {
         "mm": "25"
       }
+    },
+    {
+      "id": "arauco-1-4",
+      "material_id": "mdf",
+      "image": "/images/materials/arauco-1-4.webp",
+      "label": "¼ inch Arauco MDF",
+      "supplier_name": "Arauco 1/4\" Thick Standard 49\" x 97\" MDF Panel",
+      "supplier_item_number": "MDFS.04G2S.32",
+      "product_url": "https://mcfaddens.com/Arauco-1-4-Thick-Standard-49-x-97-FSC-MDF-Panel.html",
+      "sheet_size_mm": { "width": 1244.6, "height": 2463.8 },
+      "nominal_thickness": { "inches": 0.25, "mm": 6.35 },
+      "actual_thickness": { "inches": null, "mm": null },
+      "price_cents": 2667,
+      "shipping_cents": 1000,
+      "labour_markup_basis_points": 22500,
+      "display_thickness": { "mm": "6.35" }
+    },
+    {
+      "id": "arauco-1-2",
+      "material_id": "mdf",
+      "image": "/images/materials/arauco-1-2.webp",
+      "label": "½ inch Arauco MDF",
+      "supplier_name": "Arauco Trupan 1/2\" Thick Standard 49\" x 97\" FSC Certified MDF Panel with Raw Finish",
+      "supplier_item_number": "MDFS.08G2S.32FSC",
+      "product_url": "https://mcfaddens.com/Arauco-Trupan-1-2-Thick-Standard-49-x-97-FSC-MDF-Panel-with-Raw-Finish.html",
+      "sheet_size_mm": { "width": 1244.6, "height": 2463.8 },
+      "nominal_thickness": { "inches": 0.5, "mm": 12.7 },
+      "actual_thickness": { "inches": null, "mm": null },
+      "price_cents": 4590,
+      "shipping_cents": 1000,
+      "labour_markup_basis_points": 25000,
+      "display_thickness": { "mm": "12.7" }
+    },
+    {
+      "id": "trupan-3-4",
+      "material_id": "mdf",
+      "image": "/images/materials/trupan-3-4.webp",
+      "label": "¾ inch Trupan MDF",
+      "supplier_name": "Arauco Trupan 3/4\" Thick Standard 49\" x 97\" FSC Certified MDF Panel with Raw Finish",
+      "supplier_item_number": "MDFS.12G2S.FSC32",
+      "product_url": "https://mcfaddens.com/Arauco-Trupan-3-4-Thick-Standard-49-x-97-FSC-MDF-Panel-with-Raw-Finish.html",
+      "sheet_size_mm": { "width": 1244.6, "height": 2463.8 },
+      "nominal_thickness": { "inches": 0.75, "mm": 19.05 },
+      "actual_thickness": { "inches": null, "mm": null },
+      "price_cents": 6317,
+      "shipping_cents": 1000,
+      "labour_markup_basis_points": 27500,
+      "display_thickness": { "mm": "19.05" }
+    },
+    {
+      "id": "trupan-1",
+      "material_id": "mdf",
+      "image": "/images/materials/trupan-1.webp",
+      "label": "1 inch Trupan MDF",
+      "supplier_name": "Arauco Trupan 1\" Thick Standard 49\" x 97\" FSC Certified MDF Panel with Raw Finish",
+      "supplier_item_number": "MDFS.16G2S.32F",
+      "product_url": "https://mcfaddens.com/Arauco-Trupan-1-Thick-Standard-49-x-97-FSC-MDF-Panel-with-Raw-Finish.html",
+      "sheet_size_mm": { "width": 1244.6, "height": 2463.8 },
+      "nominal_thickness": { "inches": 1, "mm": 25.4 },
+      "actual_thickness": { "inches": null, "mm": null },
+      "price_cents": 9578,
+      "shipping_cents": 1000,
+      "labour_markup_basis_points": 30000,
+      "display_thickness": { "mm": "25.4" }
+    },
+    {
+      "id": "fibrex-3",
+      "material_id": "fibrex",
+      "image": "/images/materials/fibrex-3.webp",
+      "label": "3 mm Fibrex HDF",
+      "supplier_name": "Arauco 3mm Thick Raw Fibrex HDF Panel, 49\" x 97\"",
+      "supplier_item_number": "HD.FX02STD.32A",
+      "product_url": "https://mcfaddens.com/3mm-Raw-Fibrex-HDF-49-x-97-Panel.html",
+      "sheet_size_mm": { "width": 1244.6, "height": 2463.8 },
+      "nominal_thickness": { "inches": 0.1181102362, "mm": 3 },
+      "actual_thickness": { "inches": null, "mm": null },
+      "price_cents": 1635,
+      "shipping_cents": 1000,
+      "labour_markup_basis_points": 22500,
+      "display_thickness": { "mm": "3" }
+    },
+    {
+      "id": "fibrex-5-5",
+      "material_id": "fibrex",
+      "image": "/images/materials/fibrex-5-5.webp",
+      "label": "5.5 mm Fibrex HDF",
+      "supplier_name": "Arauco 5.5mm Thick Raw Fibrex HDF Panel with Raw Finish, 48\" x 96\"",
+      "supplier_item_number": "HD.FX04STD.32",
+      "product_url": "https://mcfaddens.com/5.5mm-Raw-Fibrex-HDF-48-x-96-Panel.html",
+      "sheet_size_mm": { "width": 1219.2, "height": 2438.4 },
+      "nominal_thickness": { "inches": 0.2165354331, "mm": 5.5 },
+      "actual_thickness": { "inches": null, "mm": null },
+      "price_cents": 3352,
+      "shipping_cents": 1000,
+      "labour_markup_basis_points": 22500,
+      "display_thickness": { "mm": "5.5" }
     }
   ],
   "sheet_size_mm": {

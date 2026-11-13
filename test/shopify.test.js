@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const catalogue = require('../materials.json');
 const { buildQuote } = require('../server/quote');
 const { createShopifyClient, buildDraftOrderInput, validateShopDomain, validateApiVersion,
   validateDeliveryAddress, DELIVERY_PRICE_CENTS, ShopifyError } = require('../server/shopify');
@@ -21,9 +22,10 @@ test('custom Shopify lines retain exact group subtotal and describe the real pie
   const input = buildDraftOrderInput(quote, options());
   assert.equal(input.lineItems.length, 1);
   assert.equal(input.lineItems[0].quantity, 1);
-  assert.equal(input.lineItems[0].originalUnitPriceWithCurrency.amount, '50.80');
+  assert.equal(input.lineItems[0].originalUnitPriceWithCurrency.amount, '49.35');
   assert.equal(input.lineItems[0].originalUnitPriceWithCurrency.currencyCode, 'CAD');
-  assert.match(input.lineItems[0].title, /3 pieces/);
+  assert.equal(input.lineItems[0].title, 'Sanded Birch Plywood (Unfinished) — Rectangle — 3 pieces');
+  assert.equal(input.lineItems[0].customAttributes.find(item => item.key === 'Material').value, '12.7 mm nominal birch (birch-12-7)');
   assert.equal(input.lineItems[0].customAttributes.find(item => item.key === 'Piece quantity').value, '3');
   assert.deepEqual(JSON.parse(input.lineItems[0].customAttributes.find(item => item.key === '_nice_workshop_cut').value), cut());
   assert.equal(input.lineItems[0].taxable, true);
@@ -34,6 +36,22 @@ test('custom Shopify lines retain exact group subtotal and describe the real pie
   assert.equal(input.taxExempt, false);
   assert.equal(input.customAttributes.find(item => item.key === 'nice_workshop_reference').value, 'checkout-123');
   assert.equal('email' in input, false);
+});
+
+test('draft descriptions use sellable material metadata and support legacy quotes', () => {
+  const legacyCatalogue = structuredClone(catalogue);
+  delete legacyCatalogue.materials;
+  legacyCatalogue.sheets = legacyCatalogue.sheets.filter(sheet => sheet.material_id === 'birch');
+  legacyCatalogue.sheets.forEach(sheet => { delete sheet.material_id; delete sheet.image; });
+  const legacy = buildQuote({ cuts: [cut()], fulfillment: 'pickup' }, legacyCatalogue);
+  assert.deepEqual(buildDraftOrderInput(legacy, options()).lineItems, buildDraftOrderInput(makeQuote(), options()).lineItems);
+
+  const trupanCut = cut({ sheetId: 'trupan-3-4' });
+  const quote = makeQuote('pickup', [trupanCut]);
+  const [line] = buildDraftOrderInput(quote, options()).lineItems;
+  assert.equal(line.title, 'MDF — Rectangle — 3 pieces');
+  assert.equal(line.customAttributes.find(item => item.key === 'Material').value, '19.05 mm nominal MDF (trupan-3-4)');
+  assert.match(line.customAttributes.find(item => item.key === 'Size').value, / wide × .+ long$/);
 });
 
 test('multiple cut groups preserve subtotal without pretending to set the final tax', () => {

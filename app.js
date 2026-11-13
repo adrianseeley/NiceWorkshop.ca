@@ -5,18 +5,22 @@
   // New cut sizes are selected in whole millimetres; inch labels are references only.
   const PER_MM = 10000;
   const PER_INCH = 254000;
+  const BASIS_POINTS = 10000n;
+  const SQUARE_INCH = BigInt(PER_INCH) ** 2n;
+  const SQUARE_FOOT = 144n * SQUARE_INCH;
+  const millimetreFormatter = new Intl.NumberFormat('en-CA', { maximumFractionDigits: 4 });
   const STORAGE_KEY = 'niceworkshop.cart.v1';
   const FRACTIONS = ['0', '1/16', '1/8', '3/16', '1/4', '5/16', '3/8', '7/16',
     '1/2', '9/16', '5/8', '11/16', '3/4', '13/16', '7/8', '15/16'];
+  const LEGACY_MATERIAL = { id: 'birch', name: 'Sanded Birch Plywood', finish: 'Unfinished', short_name: 'birch' };
 
   function roundRatio(numerator, denominator) {
     if (numerator < 0n || denominator <= 0n) throw new Error('Invalid pricing ratio.');
     return Number((2n * numerator + denominator) / (2n * denominator));
   }
 
-  function sheetAreaUnits(config) {
-    return BigInt(Math.round(config.sheet_size_mm.width * PER_MM))
-      * BigInt(Math.round(config.sheet_size_mm.height * PER_MM));
+  function sheetAreaUnits(size) {
+    return BigInt(Math.round(size.width * PER_MM)) * BigInt(Math.round(size.height * PER_MM));
   }
 
   function fitsSheet(config, shape, width, height) {
@@ -45,11 +49,41 @@
 
   function millimetres(units) {
     // Stored legacy dimensions may contain fractions of a mm; never resize them.
-    return new Intl.NumberFormat('en-CA', { maximumFractionDigits: 4 }).format(units / PER_MM);
+    return millimetreFormatter.format(units / PER_MM);
   }
 
   function dimensionLabel(units) {
     return `${millimetres(units)} mm (${nominalInches(units)})`;
+  }
+
+  function catalogueMaterials(config) {
+    return config.materials || [LEGACY_MATERIAL];
+  }
+
+  function materialForSheet(config, sheet) {
+    return catalogueMaterials(config).find(material => material.id === (sheet.material_id || LEGACY_MATERIAL.id));
+  }
+
+  function productName(material) {
+    return material.finish ? `${material.name} (${material.finish})` : material.name;
+  }
+
+  function defaultSheet(config) {
+    return config.sheets.find(sheet => sheet.id === 'birch-12-7') || config.sheets[0];
+  }
+
+  function thicknessUnits(sheet) {
+    return Math.round(Number(sheet.display_thickness?.mm || sheet.nominal_thickness.mm) * PER_MM);
+  }
+
+  function thicknessesForMaterial(config, material) {
+    return [
+      ...config.sheets.filter(sheet => materialForSheet(config, sheet).id === material.id)
+        .map(sheet => ({ id: sheet.id, units: thicknessUnits(sheet), sheet, image: sheet.image })),
+      ...(material.preview_thicknesses || []).map(preview => ({
+        id: preview.id, units: Math.round(preview.nominal_thickness_mm * PER_MM), image: preview.image, preview
+      }))
+    ];
   }
 
   function restoreItems(config, items) {
@@ -73,55 +107,67 @@
       && meetsMinimumSize(config, item.widthUnits, item.heightUnits);
   }
 
-  function displayRateCents(config, sheet) {
-    const sheetArea = sheetAreaUnits(config);
-    const taxFactor = 10000n + BigInt(config.tax_rate_basis_points);
-    const beforeTax = (BigInt(sheet.price_cents) * taxFactor
-      + BigInt(sheet.shipping_cents) * 10000n) * BigInt(PER_INCH) ** 2n
-      + BigInt(sheet.profit_per_square_inch_cents) * sheetArea * 10000n;
-    const numerator = beforeTax * taxFactor;
-    const denominator = sheetArea * 10000n * 10000n;
-    // Round the HST-inclusive display estimate upward; never use this to bill.
-    return Number((numerator + denominator - 1n) / denominator);
+  function materialRate(config, sheet) {
+    return {
+      numerator: BigInt(sheet.price_cents) * (BASIS_POINTS + BigInt(config.tax_rate_basis_points))
+        + BigInt(sheet.shipping_cents) * BASIS_POINTS,
+      denominator: BASIS_POINTS * sheetAreaUnits(sheet.sheet_size_mm ?? config.sheet_size_mm)
+    };
+  }
+
+  function labourRate(config, sheet, material) {
+    // Checkout snapshots use the price model from when the draft was created.
+    if (config.schema_version === 2) {
+      return { numerator: BigInt(sheet.profit_per_square_inch_cents), denominator: SQUARE_INCH };
+    }
+    return {
+      numerator: material.numerator * BigInt(sheet.labour_markup_basis_points),
+      denominator: material.denominator * BASIS_POINTS
+    };
+  }
+
+  function displayRatePerSquareFootCents(config, sheet) {
+    const material = materialRate(config, sheet);
+    const labour = labourRate(config, sheet, material);
+    const beforeTax = material.numerator * labour.denominator + labour.numerator * material.denominator;
+    const taxFactor = BASIS_POINTS + BigInt(config.tax_rate_basis_points);
+    return roundRatio(beforeTax * SQUARE_FOOT * taxFactor,
+      material.denominator * labour.denominator * BASIS_POINTS);
   }
 
   function quote(config, item) {
     if (!validItem(config, item)) throw new Error('Choose a valid material, size, and quantity.');
     const sheet = config.sheets.find(candidate => candidate.id === item.sheetId);
     const areaNumerator = BigInt(item.widthUnits) * BigInt(item.heightUnits) * BigInt(item.quantity);
-    const areaDenominator = BigInt(PER_INCH) ** 2n;
-    const sheetArea = sheetAreaUnits(config);
-    const tax = BigInt(config.tax_rate_basis_points);
-    // Keep supplier HST and allocated material exact until the customer line.
-    const landedNumerator = BigInt(sheet.price_cents) * (10000n + tax)
-      + BigInt(sheet.shipping_cents) * 10000n;
-    const materialCents = roundRatio(landedNumerator * areaNumerator,
-      10000n * sheetArea);
-    const profitCents = roundRatio(BigInt(sheet.profit_per_square_inch_cents) * areaNumerator,
-      areaDenominator);
+    const material = materialRate(config, sheet);
+    const labour = labourRate(config, sheet, material);
+    const materialCents = roundRatio(material.numerator * areaNumerator, material.denominator);
+    const profitCents = roundRatio(labour.numerator * areaNumerator, labour.denominator);
     const baseCents = config.base_price_per_piece_cents * item.quantity;
     const subtotalCents = materialCents + profitCents + baseCents;
-    const taxCents = roundRatio(BigInt(subtotalCents) * tax, 10000n);
+    const taxCents = roundRatio(BigInt(subtotalCents) * BigInt(config.tax_rate_basis_points), BASIS_POINTS);
     return { materialCents, profitCents, baseCents, subtotalCents, taxCents,
       totalCents: subtotalCents + taxCents,
-      areaSquareInches: Number(areaNumerator) / Number(areaDenominator) };
+      areaSquareInches: Number(areaNumerator) / Number(SQUARE_INCH) };
   }
 
   function cartTotals(config, items) {
     const lines = items.map(item => quote(config, item));
     const subtotalCents = lines.reduce((sum, line) => sum + line.subtotalCents, 0);
-    const taxCents = roundRatio(BigInt(subtotalCents) * BigInt(config.tax_rate_basis_points), 10000n);
+    const taxCents = roundRatio(BigInt(subtotalCents) * BigInt(config.tax_rate_basis_points), BASIS_POINTS);
     return { subtotalCents, taxCents, totalCents: subtotalCents + taxCents };
   }
 
   function validateConfig(config) {
     const nonnegativeInteger = value => Number.isSafeInteger(value) && value >= 0;
-    if (config?.schema_version !== 2 || config.money_scale !== 100 || config.currency !== 'CAD'
-      || config.display_rate_rounding !== 'up_to_whole_cent_including_hst'
+    const validSheetSize = size => [size?.width, size?.height]
+      .every(value => Number.isFinite(value) && Math.round(value * PER_MM) > 0 && value <= 25400);
+    const legacyPricing = config?.schema_version === 2;
+    if ((!legacyPricing && config?.schema_version !== 3) || config.money_scale !== 100 || config.currency !== 'CAD'
+      || config.display_rate_rounding !== (legacyPricing ? 'up_to_whole_cent_including_hst' : 'nearest_cent_per_square_foot_including_hst')
       || !nonnegativeInteger(config.tax_rate_basis_points) || config.tax_rate_basis_points > 10000
       || !nonnegativeInteger(config.base_price_per_piece_cents) || config.base_price_per_piece_cents > 1000000
-      || ![config.sheet_size_mm?.width, config.sheet_size_mm?.height]
-        .every(value => Number.isFinite(value) && value > 0 && value <= 25400)
+      || !validSheetSize(config.sheet_size_mm)
       || ![config.cut_size_limits_mm?.width, config.cut_size_limits_mm?.height]
         .every(value => Number.isInteger(value) && value > 0)
       || config.cut_size_limits_mm.width > config.sheet_size_mm.width
@@ -136,20 +182,54 @@
     for (const sheet of config.sheets) {
       if (typeof sheet.id !== 'string' || !sheet.id || ids.has(sheet.id)
         || typeof sheet.label !== 'string'
-        || ![sheet.price_cents, sheet.shipping_cents, sheet.profit_per_square_inch_cents]
+        || ![sheet.price_cents, sheet.shipping_cents,
+          legacyPricing ? sheet.profit_per_square_inch_cents : sheet.labour_markup_basis_points]
           .every(value => nonnegativeInteger(value) && value <= 1000000)
+        || (sheet.sheet_size_mm !== undefined && (!validSheetSize(sheet.sheet_size_mm)
+          || sheet.sheet_size_mm.width < config.cut_size_limits_mm.width
+          || sheet.sheet_size_mm.height < config.cut_size_limits_mm.height))
         || !Number.isFinite(sheet.nominal_thickness?.mm) || sheet.nominal_thickness.mm <= 0
         || !Number.isFinite(sheet.nominal_thickness?.inches) || sheet.nominal_thickness.inches <= 0) {
         throw new Error('Invalid sheet record.');
       }
       ids.add(sheet.id);
     }
+    if (config.materials !== undefined) {
+      const validId = value => typeof value === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+      const validText = value => typeof value === 'string' && value.trim().length > 0;
+      const validImage = value => typeof value === 'string' && /^\/images\/(?:[a-z0-9-]+\/)*[a-z0-9-]+\.(?:webp|jpe?g|png)$/.test(value);
+      const materialIds = new Set();
+      if (!Array.isArray(config.materials) || !config.materials.length) throw new Error('Invalid material groups.');
+      for (const material of config.materials) {
+        if (!validId(material?.id) || materialIds.has(material.id) || !validText(material.name)
+          || !validText(material.short_name) || !validText(material.description) || !validImage(material.image)
+          || (material.finish !== undefined && !validText(material.finish))
+          || (material.has_grain !== undefined && typeof material.has_grain !== 'boolean')
+          || (material.preview_thicknesses !== undefined && !Array.isArray(material.preview_thicknesses))) {
+          throw new Error('Invalid material group.');
+        }
+        materialIds.add(material.id);
+        for (const preview of material.preview_thicknesses || []) {
+          if (!validId(preview?.id) || ids.has(preview.id) || !validText(preview.label) || !validImage(preview.image)
+            || !Number.isFinite(preview.nominal_thickness_mm) || preview.nominal_thickness_mm <= 0) {
+            throw new Error('Invalid preview thickness.');
+          }
+          ids.add(preview.id);
+        }
+      }
+      if (config.sheets.some(sheet => !materialIds.has(sheet.material_id) || (sheet.image !== undefined && !validImage(sheet.image)))) {
+        throw new Error('Invalid sheet material group or photo.');
+      }
+      if (config.materials.some(material => !material.preview_thicknesses?.length && !config.sheets.some(sheet => sheet.material_id === material.id))) {
+        throw new Error('A material group must have at least one thickness.');
+      }
+    }
     return config;
   }
 
   // The same calculation functions are available to Node for financial checks.
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { quote, cartTotals, displayRateCents, fitsSheet, meetsMinimumSize, validItem, validateConfig, roundRatio, nominalInches, dimensionLabel, restoreItems, changeCartQuantity, PER_INCH, PER_MM };
+    module.exports = { quote, cartTotals, displayRatePerSquareFootCents, fitsSheet, meetsMinimumSize, validItem, validateConfig, roundRatio, nominalInches, dimensionLabel, restoreItems, changeCartQuantity, catalogueMaterials, materialForSheet, productName, defaultSheet, thicknessesForMaterial, PER_INCH, PER_MM };
   }
   if (typeof document === 'undefined') return;
 
@@ -172,8 +252,9 @@
       checkoutAttempt = { ...saved, status: saved.status === 'pending' ? 'uncertain' : saved.status };
     }
   } catch { /* The current tab still retains its key when browser storage is unavailable. */ }
-  const state = { shape: 'rectangle', sheetId: '', widthUnits: 100 * PER_MM,
-    heightUnits: 100 * PER_MM, quantity: 1, items: [], fulfillment: 'pickup' };
+  const state = { shape: 'rectangle', materialId: '', thicknessId: '', widthUnits: 100 * PER_MM,
+    heightUnits: 100 * PER_MM, diameterUnits: null, quantity: 1, items: [], fulfillment: 'pickup' };
+  const selectedThicknesses = new Map();
 
   // Analytics is optional and must never interrupt pricing, cart, or checkout.
   function track(event, properties = {}) {
@@ -187,40 +268,23 @@
   function analyticsPart(item) {
     const valid = validItem(config, item);
     const sheet = config.sheets.find(candidate => candidate.id === item.sheetId);
-    return { sheet_id: item.sheetId, shape: item.shape, thickness_mm: thicknessUnits(sheet) / PER_MM,
+    return { ...(sheet && { sheet_id: item.sheetId, thickness_mm: thicknessUnits(sheet) / PER_MM }), shape: item.shape,
       width_mm: item.widthUnits / PER_MM, length_mm: item.heightUnits / PER_MM,
       quantity: item.quantity, valid, ...(valid ? { price_cents: quote(config, item).totalCents } : {}), currency: 'CAD' };
   }
   let configurationTimer;
   function trackConfiguration() {
     // Only interaction calls this: default/restored values are not new demand.
+    clearTimeout(configurationTimer);
     let enabled = false;
     try { enabled = !!window.NiceAnalytics?.enabled(); } catch { return; }
     if (enabled) track('builder_started');
-    clearTimeout(configurationTimer);
-    if (!enabled) return;
+    if (!enabled || state.shape === 'other') return;
     configurationTimer = setTimeout(() => track('part_configured', () => analyticsPart(currentItem())), 700);
-  }
-
-  function thicknessUnits(sheet) {
-    return Math.round(Number(sheet.display_thickness?.mm || sheet.nominal_thickness.mm) * PER_MM);
   }
 
   function thicknessLabel(sheet) {
     return dimensionLabel(thicknessUnits(sheet));
-  }
-
-  function setDimensionInputs(field) {
-    const input = $(`${field}-mm`);
-    const min = field === 'width' && state.shape === 'circle'
-      ? config.piece_size_rules.minimum_longer_side_mm : config.piece_size_rules.minimum_side_mm;
-    const max = field === 'width' ? config.cut_size_limits_mm.width : config.cut_size_limits_mm.height;
-    state[`${field}Units`] = Math.max(min * PER_MM, state[`${field}Units`]);
-    input.innerHTML = Array.from({ length: max - min + 1 }, (_, index) => {
-      const mm = min + index;
-      return `<option value="${mm}">${dimensionLabel(mm * PER_MM)}</option>`;
-    }).join('');
-    input.value = String(state[`${field}Units`] / PER_MM);
   }
 
   function readDimension(field) {
@@ -229,29 +293,20 @@
   }
 
   function currentItem() {
-    return { sheetId: state.sheetId, shape: state.shape, widthUnits: state.widthUnits,
-      heightUnits: state.shape === 'circle' ? state.widthUnits : state.heightUnits, quantity: state.quantity };
+    const circle = state.shape === 'circle';
+    return { sheetId: state.thicknessId, shape: state.shape, widthUnits: circle ? state.diameterUnits : state.widthUnits,
+      heightUnits: circle ? state.diameterUnits : state.heightUnits, quantity: state.quantity };
   }
 
-  function renderMaterials() {
-    const basePrice = config.base_price_per_piece_cents;
-    const baseLabel = basePrice % 100 === 0 ? `$${basePrice / 100}` : money(basePrice);
-    $('rate-cards').innerHTML = config.sheets.map((sheet, index) => {
-      const rate = displayRateCents(config, sheet);
-      const height = 7 + index * 6;
-      const top = 32 - height;
-      // Alternating veneer colours are illustrative, not a specified ply count.
-      const layerCount = 3 + index * 2;
-      const layerHeight = height / layerCount;
-      const layers = Array.from({ length: layerCount }, (_, layer) => {
-        const y = top + layer * layerHeight;
-        return `<rect x="8" y="${y}" width="96" height="${layerHeight}" fill="${layer % 2 ? '#b18a59' : '#efdab2'}"/>`;
-      }).join('');
-      return `<label class="thickness-option rate-card"><input type="radio" name="thickness" value="${escape(sheet.id)}"${sheet.id === state.sheetId ? ' checked' : ''}><span class="rate-copy"><span class="rate-label">${millimetres(thicknessUnits(sheet))} mm <span class="thickness-suffix">thick</span></span><span class="nominal-reference">(${nominalInches(thicknessUnits(sheet))})</span><strong class="rate-value"><span class="rate-base">${baseLabel} + </span>${money(rate)}<span class="rate-unit">/sq in</span></strong></span><svg class="ply-profile rate-profile" viewBox="0 0 112 40" aria-hidden="true"><defs><clipPath id="ply-clip-${index}"><rect x="8" y="${top}" width="96" height="${height}" rx="1"/></clipPath></defs><g clip-path="url(#ply-clip-${index})">${layers}</g><rect x="8" y="${top}" width="96" height="${height}" rx="1" fill="none" stroke="#ad8654" stroke-width=".8"/></svg></label>`;
-    }).join('');
+  function currentMaterial() {
+    return catalogueMaterials(config).find(material => material.id === state.materialId);
   }
 
-  function renderDiagram(item) {
+  function materialIsUpcoming(material) {
+    return !config.sheets.some(sheet => materialForSheet(config, sheet).id === material.id);
+  }
+
+  function renderDiagram(item, material) {
     const width = item.widthUnits / PER_MM;
     const length = item.heightUnits / PER_MM;
     const scale = Math.min(260 / width, 145 / length);
@@ -265,14 +320,16 @@
     const horizontalArrow = Math.min(7, w / 3);
     const verticalArrow = Math.min(7, h / 3);
     const circle = item.shape === 'circle';
+    const hasGrain = material.has_grain !== false;
+    const fill = hasGrain ? 'url(#plan-grain)' : '#d8bc99';
     const shape = circle
-      ? `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${w / 2}" fill="url(#plan-grain)" stroke="#977249" stroke-width="1.2"/>`
-      : `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#plan-grain)" stroke="#977249" stroke-width="1.2"/>`;
+      ? `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${w / 2}" fill="${fill}" stroke="#977249" stroke-width="1.2"/>`
+      : `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="#977249" stroke-width="1.2"/>`;
     const widthLabel = `${circle ? 'Diameter' : 'Width'} ${millimetres(item.widthUnits)} mm`;
     const lengthLabel = `Length ${millimetres(item.heightUnits)} mm`;
     $('piece-diagram-title').textContent = circle
-      ? `${dimensionLabel(item.widthUnits)} diameter circle, with grain running vertically.`
-      : `Width ${dimensionLabel(item.widthUnits)} across the grain, length ${dimensionLabel(item.heightUnits)} along the grain.`;
+      ? `${dimensionLabel(item.widthUnits)} diameter circle${hasGrain ? ', with grain running vertically' : ''}.`
+      : `Width ${dimensionLabel(item.widthUnits)}${hasGrain ? ' across the grain' : ''}, length ${dimensionLabel(item.heightUnits)}${hasGrain ? ' along the grain' : ''}.`;
     $('diagram-content').innerHTML = `
       <defs>
         <pattern id="plan-grain" width="88" height="330" patternUnits="userSpaceOnUse">
@@ -288,43 +345,76 @@
         <path d="M${x} ${y - 8}V${y - 32}M${x + w} ${y - 8}V${y - 32}" opacity=".55"/>
         <path d="M${x} ${dimensionY}H${x + w}"/>
         ${circle ? '' : `<path d="M${x + w + 8} ${y}H${x + w + 32}M${x + w + 8} ${y + h}H${x + w + 32}" opacity=".55"/><path d="M${dimensionX} ${y}V${y + h}"/>`}
-        <path d="M${centerX} 238V260"/>
+        ${hasGrain ? `<path d="M${centerX} 238V260"/>` : ''}
       </g>
       <g fill="#6d543e">
         <path class="dimension-arrow" d="M${x + horizontalArrow} ${dimensionY}L${x} ${dimensionY - 3}V${dimensionY + 3}Z M${x + w - horizontalArrow} ${dimensionY}L${x + w} ${dimensionY - 3}V${dimensionY + 3}Z"/>
         ${circle ? '' : `<path class="dimension-arrow" d="M${dimensionX} ${y + verticalArrow}L${dimensionX - 3} ${y}H${dimensionX + 3}Z M${dimensionX} ${y + h - verticalArrow}L${dimensionX - 3} ${y + h}H${dimensionX + 3}Z"/>`}
-        <path d="M${centerX} 235l-3 6h6Z M${centerX} 263l-3-6h6Z"/>
+        ${hasGrain ? `<path d="M${centerX} 235l-3 6h6Z M${centerX} 263l-3-6h6Z"/>` : ''}
       </g>
       <g fill="#594332" font-family="system-ui, sans-serif" font-size="15" font-weight="400">
         <text x="${centerX}" y="${y - 59}" text-anchor="middle" font-size="14">${escape(widthLabel)}<tspan x="${centerX}" dy="22" font-size="11">(${nominalInches(item.widthUnits)})</tspan></text>
         ${circle ? '' : `<text transform="translate(${x + w + 77} ${y + h / 2}) rotate(90)" text-anchor="middle" font-size="14">${escape(lengthLabel)}<tspan x="0" dy="22" font-size="11">(${nominalInches(item.heightUnits)})</tspan></text>`}
-        <text x="${centerX}" y="285" text-anchor="middle" font-size="12" letter-spacing="1">GRAIN DIRECTION</text>
+        ${hasGrain ? `<text x="${centerX}" y="285" text-anchor="middle" font-size="12" letter-spacing="1">GRAIN DIRECTION</text>` : ''}
       </g>`;
   }
 
+  function renderMaterialControls() {
+    const material = currentMaterial();
+    $('wood-cards').querySelectorAll('input[name="material"]').forEach(input => {
+      input.checked = input.value === state.materialId;
+    });
+    $('rate-cards').querySelectorAll('[data-material]').forEach(card => {
+      const input = card.querySelector('input');
+      card.hidden = card.dataset.material !== state.materialId;
+      input.disabled = card.hidden;
+      input.checked = !card.hidden && input.value === state.thicknessId;
+    });
+    const upcoming = materialIsUpcoming(material);
+    const status = $('material-status');
+    status.textContent = upcoming ? 'Browse the planned thicknesses before online ordering opens.' : '';
+    status.hidden = !upcoming;
+    const hasGrain = material.has_grain !== false;
+    $('width-help').textContent = `Max ${dimensionLabel(config.cut_size_limits_mm.width * PER_MM)}${hasGrain ? '\nAcross the grain' : ''}`;
+    $('height-help').textContent = `Max ${dimensionLabel(config.cut_size_limits_mm.height * PER_MM)}${hasGrain ? '\nAlong the grain' : ''}`;
+  }
+
   function renderControls() {
-    $('shape').value = state.shape;
+    $('shape').querySelectorAll('input[name="shape"]').forEach(input => {
+      input.checked = input.value === state.shape;
+    });
+    const custom = state.shape === 'other';
+    $('cut-options').hidden = custom;
+    $('custom-shape-note').hidden = !custom;
+    if (custom) {
+      $('add-to-cart').disabled = true;
+      return;
+    }
     const circle = state.shape === 'circle';
+    $('width-field').hidden = circle;
     $('height-field').hidden = circle;
-    $('width-label').textContent = circle ? 'Diameter' : 'Width';
-    $('height-label').textContent = 'Length';
-    $('width-help').textContent = `Max ${dimensionLabel(config.cut_size_limits_mm.width * PER_MM)}\nAcross the grain`;
-    $('height-help').textContent = `Max ${dimensionLabel(config.cut_size_limits_mm.height * PER_MM)}\nAlong the grain`;
-    setDimensionInputs('width');
-    setDimensionInputs('height');
-    renderMaterials();
+    $('diameter-field').hidden = !circle;
+    $('width-mm').value = String(state.widthUnits / PER_MM);
+    if (circle) {
+      state.diameterUnits ??= Math.max(config.piece_size_rules.minimum_longer_side_mm * PER_MM,
+        Math.min(state.widthUnits, config.cut_size_limits_mm.height * PER_MM));
+    }
+    $('diameter-mm').value = String(state.diameterUnits === null ? config.piece_size_rules.default_side_mm : state.diameterUnits / PER_MM);
+    $('height-mm').value = String(state.heightUnits / PER_MM);
     renderQuote();
   }
 
   function renderQuote() {
+    if (state.shape === 'other') return;
     const item = currentItem();
+    const material = currentMaterial();
     const valid = validItem(config, item);
     let error = '';
     if (!Number.isInteger(state.quantity) || state.quantity < 1 || state.quantity > 999) error = 'Enter a quantity from 1 to 999.';
     else if (!item.widthUnits || !item.heightUnits) error = 'Choose a size greater than zero.';
     else if (!fitsSheet(config, item.shape, item.widthUnits, item.heightUnits)) error = state.shape === 'circle'
       ? `The diameter must fit within ${dimensionLabel(config.cut_size_limits_mm.width * PER_MM)}.`
-      : `Width is limited to ${dimensionLabel(config.cut_size_limits_mm.width * PER_MM)} and length to ${dimensionLabel(config.cut_size_limits_mm.height * PER_MM)}. Grain runs along the length.`;
+      : `Width is limited to ${dimensionLabel(config.cut_size_limits_mm.width * PER_MM)} and length to ${dimensionLabel(config.cut_size_limits_mm.height * PER_MM)}.${material.has_grain === false ? '' : ' Grain runs along the length.'}`;
     else if (!meetsMinimumSize(config, item.widthUnits, item.heightUnits)) {
       const minimumLong = dimensionLabel(config.piece_size_rules.minimum_longer_side_mm * PER_MM);
       const minimumShort = dimensionLabel(config.piece_size_rules.minimum_side_mm * PER_MM);
@@ -340,8 +430,9 @@
       && meetsMinimumSize(config, item.widthUnits, item.heightUnits);
     $('width-mm').setAttribute('aria-invalid', String(!validSize));
     $('height-mm').setAttribute('aria-invalid', String(!validSize));
+    $('diameter-mm').setAttribute('aria-invalid', String(!validSize));
     $('quantity').setAttribute('aria-invalid', String(!Number.isInteger(state.quantity) || state.quantity < 1 || state.quantity > 999));
-    if (fitsSheet(config, item.shape, item.widthUnits, item.heightUnits)) renderDiagram(item);
+    if (fitsSheet(config, item.shape, item.widthUnits, item.heightUnits)) renderDiagram(item, material);
     if (valid) {
       const single = quote(config, { ...item, quantity: 1 });
       const line = quote(config, item);
@@ -353,7 +444,9 @@
       }
     } else {
       $('piece-price').textContent = '—';
-      $('piece-price-note').textContent = 'Choose your size for a price';
+      const thickness = thicknessesForMaterial(config, material).find(option => option.id === state.thicknessId);
+      $('piece-price-note').textContent = materialIsUpcoming(material) || thickness?.preview ? 'Coming soon'
+        : thickness ? 'Choose a valid size and quantity for a price' : 'Choose a thickness for a price';
       if ($('line-price')) { $('line-price').textContent = ''; $('line-price').hidden = true; }
     }
   }
@@ -385,7 +478,8 @@
   }
 
   function productTitle(item) {
-    return `Sanded Birch Plywood (Unfinished) - ${item.shape === 'circle' ? 'Circle' : 'Rectangle'}`;
+    const sheet = config.sheets.find(candidate => candidate.id === item.sheetId);
+    return `${productName(materialForSheet(config, sheet))} - ${item.shape === 'circle' ? 'Circle' : 'Rectangle'}`;
   }
 
   function cartEstimate() {
@@ -441,7 +535,7 @@
     saveCart();
     renderCart();
     track('part_added', () => ({ ...analyticsPart(item), ...analyticsCart() }));
-    announce(`${item.quantity} birch ${item.shape}${item.quantity === 1 ? '' : 's'} added to your cart.`);
+    announce(`${item.quantity} ${currentMaterial().short_name} ${item.shape}${item.quantity === 1 ? '' : 's'} added to your cart.`);
     $('add-to-cart').textContent = 'Added to your cart ✓';
     clearTimeout(addToCart.timer);
     addToCart.timer = setTimeout(() => { $('add-to-cart').innerHTML = 'Add to cart <span aria-hidden="true">+</span>'; }, 1800);
@@ -451,9 +545,9 @@
     const totals = cartEstimate();
     const lines = state.items.map((item, index) => {
       const sheet = config.sheets.find(candidate => candidate.id === item.sheetId);
-      return `${index + 1}. ${productTitle(item)} — ${itemDescription(item)}\n   ${thicknessLabel(sheet)} nominal birch; quantity ${item.quantity}\n   ${money(quote(config, item).subtotalCents)} before HST`;
+      return `${index + 1}. ${productTitle(item)} — ${itemDescription(item)}\n   ${thicknessLabel(sheet)} nominal ${materialForSheet(config, sheet).short_name}; quantity ${item.quantity}\n   ${money(quote(config, item).subtotalCents)} before HST`;
     });
-    return `NICE WORKSHOP — ORDER SUMMARY${checkoutSettings.mode === 'test' ? ' — TEST ONLY' : ''}\n\n${lines.join('\n\n')}\n\nCut subtotal: ${money(totals.subtotalCents)} CAD${totals.deliveryCents ? `\nLocal delivery before HST: ${money(totals.deliveryCents)}` : ''}\nEstimated HST (${config.tax_rate_basis_points / 100}%): ${money(totals.taxCents)}\nEstimated total: ${money(totals.totalCents)} CAD\n\n${state.fulfillment === 'pickup' ? `Free driveway pickup — ${checkoutSettings.pickupAddress}.` : 'Local Drop Off — Arnprior, Braeside, McNab, or Renfrew, Ontario. Delivery is included in the estimate above.'}\nCurrent lead time: 14 days.\n\nAll measurements are in mm. Inches are provided as a nominal reference only, rounded to the nearest 1/16 inch.\nAll thicknesses are nominal; actual thickness is typically slightly less, as is standard in the plywood industry.\nCutting, light edge cleanup, and a little love are all included.\nShopify calculates final tax at checkout.\nThis is an estimate. Your order will not be submitted until you check out with Shopify.`;
+    return `NICE WORKSHOP — ORDER SUMMARY${checkoutSettings.mode === 'test' ? ' — TEST ONLY' : ''}\n\n${lines.join('\n\n')}\n\nCut subtotal: ${money(totals.subtotalCents)} CAD${totals.deliveryCents ? `\nLocal delivery before HST: ${money(totals.deliveryCents)}` : ''}\nEstimated HST (${config.tax_rate_basis_points / 100}%): ${money(totals.taxCents)}\nEstimated total: ${money(totals.totalCents)} CAD\n\n${state.fulfillment === 'pickup' ? `Free driveway pickup — ${checkoutSettings.pickupAddress}.` : 'Local Drop Off — Arnprior, Braeside, McNab, or Renfrew, Ontario. Delivery is included in the estimate above.'}\nCurrent lead time: 14 days.\n\nAll measurements are in mm. Inches are provided as a nominal reference only, rounded to the nearest 1/16 inch.\nThicknesses are nominal. Actual thickness may vary.\nCutting, light edge cleanup, and a little love are all included.\nShopify calculates final tax at checkout.\nThis is an estimate. Your order will not be submitted until you check out with Shopify.`;
   }
 
   function saveCheckoutAttempt() {
@@ -622,17 +716,32 @@
 
   function wireEvents() {
     $('shape').addEventListener('change', event => {
+      if (!event.target.matches('input[name="shape"]')) return;
       state.shape = event.target.value;
       renderControls();
       trackConfiguration();
     });
-    $('rate-cards').addEventListener('change', event => {
-      if (!event.target.matches('input[name="thickness"]')) return;
-      state.sheetId = event.target.value;
+    $('wood-cards').addEventListener('change', event => {
+      if (!event.target.matches('input[name="material"]')) return;
+      const material = catalogueMaterials(config).find(candidate => candidate.id === event.target.value);
+      if (!material || material.id === state.materialId) return;
+      const previous = thicknessesForMaterial(config, currentMaterial()).find(option => option.id === state.thicknessId);
+      const options = thicknessesForMaterial(config, material);
+      if (previous) selectedThicknesses.set(state.materialId, previous.id);
+      state.materialId = material.id;
+      state.thicknessId = selectedThicknesses.get(material.id)
+        || options.find(option => option.units === previous?.units)?.id || '';
+      renderMaterialControls();
       renderQuote();
       trackConfiguration();
     });
-    ['width', 'height'].forEach(field => {
+    $('rate-cards').addEventListener('change', event => {
+      if (!event.target.matches('input[name="thickness"]') || event.target.disabled) return;
+      state.thicknessId = event.target.value;
+      renderQuote();
+      trackConfiguration();
+    });
+    ['width', 'height', 'diameter'].forEach(field => {
       $(`${field}-mm`).addEventListener('change', () => { readDimension(field); renderQuote(); trackConfiguration(); });
     });
     $('quantity').addEventListener('input', event => { state.quantity = event.target.valueAsNumber; renderQuote(); trackConfiguration(); });
@@ -664,7 +773,8 @@
       const selector = removed ? `[data-remove="${nextIndex}"]`
         : `[data-quantity-index="${index}"][data-delta="${state.items[index].quantity === 999 ? -1 : delta}"]`;
       const next = $('cart-items').querySelector(selector);
-      (next || $('add-to-cart')).focus({ preventScroll: true });
+      const builderControl = state.shape === 'other' ? $('custom-shape-note').querySelector('a') : $('add-to-cart');
+      (next || builderControl).focus({ preventScroll: true });
       announce(removed ? 'Piece removed from your cart.'
         : `Quantity updated to ${state.items[index].quantity}. Cart total ${$('cart-total').textContent}.`);
     });
@@ -716,8 +826,13 @@
       config = validateConfig(await response.json());
       state.widthUnits = config.piece_size_rules.default_side_mm * PER_MM;
       state.heightUnits = state.widthUnits;
-      state.sheetId = config.sheets.find(sheet => sheet.id === 'birch-12-7')?.id || config.sheets[0].id;
+      const sheet = defaultSheet(config);
+      state.materialId = materialForSheet(config, sheet).id;
+      state.thicknessId = sheet.id;
       restoreCart();
+      // Firefox can restore form values on reload; keep static controls aligned with the quote.
+      renderMaterialControls();
+      $('quantity').value = String(state.quantity);
       wireEvents();
       renderControls();
       renderCart();

@@ -1,7 +1,7 @@
 'use strict';
 
 const { buildQuote, QuoteValidationError } = require('./quote');
-const { quote: priceCut, dimensionLabel } = require('../app.js');
+const { quote: priceCut, dimensionLabel, materialForSheet, productName } = require('../app.js');
 
 // The owner requested approximately $5 including Ontario HST. With a two-decimal
 // pre-tax rate, $4.42 produces approximately $4.99; Shopify calculates final tax.
@@ -279,19 +279,21 @@ function buildDraftOrderInput(quote, options = {}) {
     shippingLine: nativePickup ? {shippingRateHandle:nativePickup.handle} : { title: fulfillment.title.trim(), priceWithCurrency: shippingPrice },
     lineItems: verified.cuts.map((cut, index) => {
       const sheet = verified.catalogueSnapshot.sheets.find(item => item.id === cut.sheetId);
+      const material = materialForSheet(verified.catalogueSnapshot, sheet);
       const groupPrice = priceCut(verified.catalogueSnapshot, cut).subtotalCents;
       const thickness = sheet.display_thickness?.mm ?? sheet.nominal_thickness.mm;
+      const hasGrain = material.has_grain !== false;
       const size = cut.shape === 'circle' ? `Diameter ${dimensionLabel(cut.widthUnits)}`
-        : `${dimensionLabel(cut.widthUnits)} across grain × ${dimensionLabel(cut.heightUnits)} along grain`;
+        : `${dimensionLabel(cut.widthUnits)}${hasGrain ? ' across grain' : ' wide'} × ${dimensionLabel(cut.heightUnits)}${hasGrain ? ' along grain' : ' long'}`;
       return {
-        title: `Sanded Birch Plywood (Unfinished) — ${cut.shape === 'circle' ? 'Circle' : 'Rectangle'} — ${cut.quantity} ${cut.quantity === 1 ? 'piece' : 'pieces'}`,
+        title: `${productName(material)} — ${cut.shape === 'circle' ? 'Circle' : 'Rectangle'} — ${cut.quantity} ${cut.quantity === 1 ? 'piece' : 'pieces'}`,
         quantity: 1,
         originalUnitPriceWithCurrency: money(groupPrice),
         requiresShipping: true,
         taxable: true,
         customAttributes: [
           { key: 'Cut group', value: String(index + 1) },
-          { key: 'Material', value: `${thickness} mm nominal birch (${cut.sheetId})` },
+          { key: 'Material', value: `${thickness} mm nominal ${material.short_name} (${cut.sheetId})` },
           { key: 'Size', value: size },
           { key: 'Piece quantity', value: String(cut.quantity) },
           { key: '_nice_workshop_cut', value: JSON.stringify(cut) },
