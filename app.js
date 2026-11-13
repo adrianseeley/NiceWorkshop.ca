@@ -479,7 +479,8 @@
 
   function productTitle(item) {
     const sheet = config.sheets.find(candidate => candidate.id === item.sheetId);
-    return `${productName(materialForSheet(config, sheet))} - ${item.shape === 'circle' ? 'Circle' : 'Rectangle'}`;
+    const material = materialForSheet(config, sheet);
+    return `${material.name} - ${item.shape === 'circle' ? 'Circle' : 'Rectangle'}`;
   }
 
   function cartEstimate() {
